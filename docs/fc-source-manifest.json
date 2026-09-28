@@ -1,0 +1,40 @@
+{
+  "repository": "https://github.com/ARM-software/CMSIS-NN",
+  "tag": "v8.0.0",
+  "tag_object": "fec593391437cd8d240053bae54eba8d1f36d242",
+  "commit": "13c97dbb6f781d4aab38ed34e6e441f42b79aff4",
+  "checked_on": "2026-09-27",
+  "status": "Source inspection only; not a complete build dependency manifest. Files declare Apache-2.0. No kernel execution or binary validation.",
+  "files": [
+    {
+      "path": "Source/FullyConnectedFunctions/arm_fully_connected_s8.c",
+      "source_url": "https://raw.githubusercontent.com/ARM-software/CMSIS-NN/13c97dbb6f781d4aab38ed34e6e441f42b79aff4/Source/FullyConnectedFunctions/arm_fully_connected_s8.c",
+      "sha256": "e6eb8c143a8f473a218e5310820a346cccb1564fd4690b0a0fdaa1124f6a3435"
+    },
+    {
+      "path": "Source/FullyConnectedFunctions/arm_fully_connected_get_buffer_sizes_s8.c",
+      "source_url": "https://raw.githubusercontent.com/ARM-software/CMSIS-NN/13c97dbb6f781d4aab38ed34e6e441f42b79aff4/Source/FullyConnectedFunctions/arm_fully_connected_get_buffer_sizes_s8.c",
+      "sha256": "46f7ff5c7283b304c606eb07dd90189a62d02497ee8c13777a3e21a88263c7d1"
+    },
+    {
+      "path": "Source/NNSupportFunctions/arm_nn_vec_mat_mult_t_s8.c",
+      "source_url": "https://raw.githubusercontent.com/ARM-software/CMSIS-NN/13c97dbb6f781d4aab38ed34e6e441f42b79aff4/Source/NNSupportFunctions/arm_nn_vec_mat_mult_t_s8.c",
+      "sha256": "056300bafed58af6a5e337e5391d63bee4e0cfba1749fa1b58c7365aae41221e"
+    },
+    {
+      "path": "Include/arm_nnsupportfunctions.h",
+      "source_url": "https://raw.githubusercontent.com/ARM-software/CMSIS-NN/13c97dbb6f781d4aab38ed34e6e441f42b79aff4/Include/arm_nnsupportfunctions.h",
+      "sha256": "0d5f6dd9f81ae6361e2d0ffa7fa91ccd3ae1f84fb898942b027260609caaae6b"
+    },
+    {
+      "path": "Include/arm_nnfunctions.h",
+      "source_url": "https://raw.githubusercontent.com/ARM-software/CMSIS-NN/13c97dbb6f781d4aab38ed34e6e441f42b79aff4/Include/arm_nnfunctions.h",
+      "sha256": "58552550dc1041f91a58a0aacd15b278d88324685b4c90fc703e7b20082447cd"
+    },
+    {
+      "path": "Include/arm_nn_math_types.h",
+      "source_url": "https://raw.githubusercontent.com/ARM-software/CMSIS-NN/13c97dbb6f781d4aab38ed34e6e441f42b79aff4/Include/arm_nn_math_types.h",
+      "sha256": "0d3b5bf0eb8605cca3607c774c40ba43a63db0e18e290cfb89a245854968a63d"
+    }
+  ]
+}
