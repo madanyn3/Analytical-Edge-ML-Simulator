@@ -120,6 +120,12 @@ errors are reported with their failure regions. The theorem has a written proof 
 
 ### Phase K — Multi-core cluster with shared cache hierarchy and memory (≈30–40 h)
 
+**Superseded in detail by [cluster design revision 2](cluster-design.md).** That revision
+uses tiles on a k×k mesh or torus: each tile has a core, a private L1, an L2 bank and a
+router. Lines are interleaved across banks, there is one memory controller, links are
+contended under XY routing, and the grid sizes are 2×2, then 3×3, then 4×4. The text
+below is the original single-arbiter outline.
+
 This scope was added on 16 October 2026. P synthetic cores, each with a private cache path,
 share a lower cache level and/or the memory service. The phase extends the existing models
 from one injection entry to several competing request sources with explicit arbitration.
@@ -130,8 +136,8 @@ scope decision. Reads only, so there is no coherence protocol. Writes stay rejec
 **K1. Core as a dependency-driven request source.** Each core runs a directed program of
 segments `(c_k, request_k)`: `c_k` cycles of compute, then a read (address, width). With one
 outstanding blocking request, the arrival of the next request is
-`a_(k+1) = d_k + c_(k+1)`. With up to `m` independent outstanding reads, it waits for the
-oldest of the last `m`. This is the closed-loop feedback that research-plan §20.4 warns an
+`a_(k+1) = d_k + c_(k+1)`. More than one outstanding read per core is deferred. This is
+the closed-loop feedback that research-plan §20.4 warns an
 unstalled trace cannot supply. It is an abstract core, **not** the cycle-accurate ISA
 pipeline of Phase D. Phase D's pipeline will later produce these segment streams.
 
@@ -145,14 +151,14 @@ shared L2 sees one interleaved miss stream, so cross-core capacity and conflict 
 exact under LRU.
 
 **K3. Analytical models, verified against K2.**
-- **K3a. Symmetric deterministic theorem.** Take P identical cores, each with compute `Z`
-  followed by a request of service `S` at one shared server (FIFO or round-robin, one
-  credit). Written as a max-plus linear system, the per-core cycle time is
-  `max(Z+S, P·S)`. This gives throughput `X = min(P/(Z+S), 1/S)` and per-request latency
-  `R = max(S, P·S − Z)` after a transient of at most P requests. Prove the result and the
-  transient length. The point is that, for deterministic symmetric closed systems, the
-  classical asymptotic bounds are attained exactly. Extend to the pipelined service
-  (`I`, `D`, `K` credits): `X ≤ min(P/(Z+D), 1/I, K/D)`, with conditions for equality.
+- **K3a. Symmetric deterministic theorem.** Take P identical cores (compute `Z`) on a
+  pipelined shared memory (latency `D`, issue spacing `I`, `K` credits) under FIFO or
+  round-robin. Admissions obey a one-variable max-plus recurrence with eventual slope
+  `λ = max(I, D/K, (Z+D)/P)`. So the asymptotic throughput bounds
+  `X = min(1/I, K/D, P/(Z+D))` are attained exactly, with latency `R = P·λ − Z`. A blocking
+  server with service `S` is the case `K=1, I=D=S`. Proving the transient length is
+  open: a scratch check found transients of up to 20 admissions for P ≤ 6, so it is not
+  bounded by P. See [the cluster design](cluster-design.md) §4.1.
 - **K3b. Approximation study.** For heterogeneous `Z_p` and mixed hit/miss streams, compare
   against the exact K2 result: mean value analysis (MVA, exact for product-form networks,
   approximate here), balanced job bounds, and the asymptotic bounds. Expect MVA to be
