@@ -4,7 +4,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 option(EDGE_SANITIZE "Enable undefined/address sanitizers" OFF)
-add_library(edge_fc src/fc.cpp src/memory.cpp src/ini.cpp src/config.cpp src/service.cpp src/hierarchy.cpp src/testbench.cpp)
+add_library(edge_fc src/fc.cpp src/memory.cpp src/ini.cpp src/config.cpp src/cluster_config.cpp src/service.cpp src/hierarchy.cpp src/testbench.cpp)
 target_include_directories(edge_fc PUBLIC include)
 target_compile_options(edge_fc PRIVATE -Wall -Wextra -Wconversion -Werror)
 if(EDGE_SANITIZE)
@@ -32,3 +32,7 @@ add_test(NAME bench_latency COMMAND edge_bench ${CMAKE_CURRENT_SOURCE_DIR}/confi
 add_test(NAME bench_bandwidth COMMAND edge_bench ${CMAKE_CURRENT_SOURCE_DIR}/configs/memory-bandwidth.ini)
 add_test(NAME bench_csv COMMAND edge_bench ${CMAKE_CURRENT_SOURCE_DIR}/configs/hierarchy-directed.ini
     --trace ${CMAKE_CURRENT_SOURCE_DIR}/configs/reads.csv)
+add_executable(cluster_config_tests tests/cluster_config_tests.cpp)
+target_link_libraries(cluster_config_tests PRIVATE edge_fc)
+add_test(NAME cluster_config COMMAND cluster_config_tests ${CMAKE_CURRENT_SOURCE_DIR}/configs/cluster-2x2-mesh.ini
+    ${CMAKE_CURRENT_SOURCE_DIR}/configs/hierarchy.ini)

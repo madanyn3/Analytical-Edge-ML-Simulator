@@ -21,6 +21,15 @@ closed-loop L1 requests with guarded fixed-state acceleration. `memory-bandwidth
 uses the cold periodic-memory closed form. The other profiles use bounded finite
 evaluation and print the evaluated request completions.
 
+## Version 2: tiled cluster (parser only so far)
+
+`version=2` files describe the synthetic k×k mesh/torus cluster. Their sections and
+constraints are specified in [the cluster design](cluster-design.md), section 7. They use
+the same lexical rules as version 1 (shared lexer `src/ini.cpp`). The parser, validator
+and effective-config round trip are implemented and tested (`tests/cluster_config_tests.cpp`,
+example `configs/cluster-2x2-mesh.ini`). The cluster evaluator is not implemented yet, so
+`edge_bench` does not run these files.
+
 ## Strict version-1 syntax
 
 The parser implements a deliberately small INI dialect with no dependency download.
