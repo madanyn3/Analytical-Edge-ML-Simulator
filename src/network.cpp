@@ -23,7 +23,7 @@ void Network::inject(const Packet& p,U time) {
     if (p.source==p.target) { pending_.push_back({p.id,time}); return; } // BK2: local.
     auto path=topology_.route(p.source,p.target);
     // The head reaches the first output after the source router's t_r.
-    links_[topology_.link_index(path.front())].queue.push_back({add(time,router_),Port::local,p.id,0});
+    links_[topology_.link_index(path.front())].queue.push_back({add(time,router_),Port::local,p.rank,p.id,0});
     flights_.emplace(p.id,InFlight{p,std::move(path)});
 }
 std::optional<U> Network::grant_time(const LinkState& l) const {
@@ -66,6 +66,7 @@ void Network::grants(U t) {
         auto fifo_less=[](const Waiting& a,const Waiting& b) {
             if (a.ready!=b.ready) return a.ready<b.ready;
             if (a.in!=b.in) return a.in<b.in;   // Fixed port order local,-X,+X,-Y,+Y.
+            if (a.rank!=b.rank) return a.rank<b.rank;
             return a.id<b.id;
         };
         auto best=link.queue.end();
@@ -95,7 +96,7 @@ void Network::grants(U t) {
             // Head crosses this link (t_l) then the next router (t_r) before contending.
             const auto& next=flight.path[w.hop+1];
             links_[topology_.link_index(next)].queue.push_back(
-                {add(add(t,link_),router_),topology_.input_port(here),w.id,w.hop+1});
+                {add(add(t,link_),router_),topology_.input_port(here),w.rank,w.id,w.hop+1});
         } else {
             // Whole packet has arrived once its last flit leaves the final link.
             pending_.push_back({w.id,add(t,occupancy)});

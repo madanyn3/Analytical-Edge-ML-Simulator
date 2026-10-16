@@ -150,8 +150,19 @@ winner = POLICY(E);  s = t;  free_e = t + F_winner · t_l
 
 | `link_arbitration` | Winner |
 |---|---|
-| `fifo` | Smallest `ready`. Ties go by input port in the fixed order `local, −X, +X, −Y, +Y`, then by global packet id |
+| `fifo` | Smallest `ready`. Ties go by input port in the fixed order `local, −X, +X, −Y, +Y`, then by packet class |
 | `round_robin` | Per-link pointer over input ports in that same order. The first port, cyclically from the pointer, with an eligible packet wins; within a port, FIFO. Pointer ← winner's port + 1 |
+
+**Packet-class tie rule** (added after the oracle sweep found an id-dependent tie):
+- **Order:** memory-controller responses, then bank responses, then bank memory
+  requests, then core requests.
+- **Why only the local port needs it:** packets on a non-local port can't arrive at the
+  same tick, because their upstream link served them one at a time.
+- **Why the order is complete:** each tile injects at most one packet per class per tick.
+  A core has one outstanding read, a bank serves one request at a time, and the MC's
+  completions are distinct because every request is a same-size, aligned L2 line.
+- **Consequence:** packet ids never decide arbitration. The test oracle breaks any
+  remaining tie by reverse id, and it still agrees with the evaluator.
 
 ### 4.4 Bank and memory-controller arbitration
 

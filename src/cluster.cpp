@@ -12,6 +12,13 @@ using U=std::uint64_t;
 using checked::add;
 using checked::mul;
 enum class Kind { req, resp, mreq, mresp };
+// Local-port tie order (design §4.3): memory responses, bank responses, bank memory
+// requests, core requests. Each tile injects at most one packet per class per tick,
+// so packet ids never decide arbitration.
+U rank(Kind k) {
+    switch (k) { case Kind::mresp: return 0; case Kind::resp: return 1; case Kind::mreq: return 2; case Kind::req: return 3; }
+    return 3;
+}
 // What a packet carries. REQ/RESP name an L1 line; MREQ/MRESP an L2 line.
 struct PacketInfo { Kind kind; std::size_t core; U bank; U line; };
 struct BankRequest { U arrival, source, l1_line, seq; std::size_t core; };
@@ -90,7 +97,7 @@ private:
     void send(PacketInfo info,U source,U target,U flits,U time) {
         const U id=next_packet_++;
         packets_.emplace(id,info);
-        net_.inject({id,source,target,flits},time);
+        net_.inject({id,source,target,flits,rank(info.kind)},time);
     }
     U bank_tile(U b) const { return b; } // One bank per tile; bank index = tile index.
     // Start read `next` of core p at its issue time: split into ascending L1 lines.

@@ -9,8 +9,13 @@
 
 namespace edge::noc {
 struct Packet {
-    U id;       // Caller-unique; final FIFO tie-break after ready time and input port.
+    U id;       // Caller-unique; last-resort tie-break only (see rank).
     U source, target, flits;
+    // Class priority for ties at the same ready time and input port; lower wins.
+    // Only packets injected at the same router can tie (non-local inputs are
+    // serialized by their upstream link), so a caller that gives each simultaneous
+    // local injection a distinct rank makes arbitration independent of ids.
+    U rank = 0;
 };
 struct Delivery { U id, time; };
 struct LinkStats {
@@ -35,7 +40,7 @@ public:
     const Topology& topology() const { return topology_; }
     bool idle() const;
 private:
-    struct Waiting { U ready; Port in; U id; std::size_t hop; };
+    struct Waiting { U ready; Port in; U rank; U id; std::size_t hop; };
     struct InFlight { Packet packet; std::vector<Link> path; };
     struct LinkState { std::vector<Waiting> queue; U free{}; std::uint8_t pointer{}; };
     Topology topology_;
