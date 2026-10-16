@@ -1,0 +1,33 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  host:
+    # Host simulator only; the ARM analysis build needs the pinned toolchain download.
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: debug-sanitize
+            build_type: Debug
+            sanitize: "ON"
+          - name: release
+            build_type: Release
+            sanitize: "OFF"
+    name: ${{ matrix.name }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -DCMAKE_CXX_COMPILER=g++-13
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DEDGE_SANITIZE=${{ matrix.sanitize }}
+      - name: Build
+        run: cmake --build build -j4
+      - name: Test
+        run: ctest --test-dir build --output-on-failure

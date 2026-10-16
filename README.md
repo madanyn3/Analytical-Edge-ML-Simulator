@@ -1,5 +1,7 @@
 # Analytical Edge-ML Performance Simulator
 
+[![ci](https://github.com/madanyn3/Analytical-Edge-ML-Simulator/actions/workflows/ci.yml/badge.svg)](https://github.com/madanyn3/Analytical-Edge-ML-Simulator/actions/workflows/ci.yml)
+
 This project will estimate edge-ML execution costs using mathematical models derived from kernel code and architecture. The C++ source-algebra slice reproduces a pinned CMSIS-NN FC example, counts work and enumerates small source tensor schedules. Synthetic memory models include set-associative LRU, configurable blocking cache hierarchies, pipelined FIFO memory service, analytical regular-stream acceleration and conditional roofline bounds. A strict config parser and direct-stimulus testbench exercise these modules without a CPU frontend. Validated hardware timing predictions do not exist yet.
 
 We will learn and implement the theory in small steps, beginning with one pinned CMSIS-NN int8 fully connected kernel and its exact quantization semantics. The first milestone derives operation counts and ordered byte addresses, including the quantization epilogue, in a small `KernelIR`. Module-level directed tests check the algebra; a separately frozen standard benchmark suite will evaluate supported workloads. Memory and architectural timing models follow separately.
