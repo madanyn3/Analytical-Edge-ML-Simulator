@@ -354,7 +354,10 @@ Recorded 16 October 2026 by the user:
 3. QEMU is accepted as a test-only differential oracle for the frontend.
 4. TTFT is out of scope for the Cortex-M4/MLPerf Tiny target.
 
-Still open: weekly hours (the plan assumes 10–12 h/week until 27 November).
+5. Working mode: about one supervised hour per day with Claude Code. Claude implements,
+   the user reviews and owns the theory. The hour estimates above assume solo development;
+   in this mode the bottleneck is review and understanding, so each session targets one
+   reviewable step (one derivation, one module, or one test suite).
 
 ## 7. Study references for Phase K
 
