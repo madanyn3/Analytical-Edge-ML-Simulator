@@ -47,6 +47,12 @@ Completion MemoryService::submit(Request r) {
     state_=std::move(next);
     return {r.arrival,start,done,d.wire};
 }
+std::uint64_t MemoryService::earliest_admission() const {
+    // Mirrors submit(): credits completing at or before next_issue are free by then.
+    const auto still=std::upper_bound(state_.pending.begin(),state_.pending.end(),state_.next_issue);
+    const auto busy=static_cast<U>(state_.pending.end()-still);
+    return busy<config_.outstanding?state_.next_issue:*still;
+}
 PeriodicResult periodic_memory(const ServiceConfig& c,Request first,U n,U spacing) {
     validate(c);
     const auto d=demand(c,first);

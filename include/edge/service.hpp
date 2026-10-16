@@ -19,6 +19,10 @@ class MemoryService {
 public:
     explicit MemoryService(ServiceConfig, ServiceState initial = {});
     Completion submit(Request);
+    // Earliest tick at which a request already waiting could be admitted: next_issue,
+    // or the earliest outstanding completion if all credits are still busy then.
+    // A request submitted with arrival >= this value starts exactly at its arrival.
+    std::uint64_t earliest_admission() const;
     const ServiceState& state() const { return state_; }
 private:
     ServiceConfig config_;
