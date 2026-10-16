@@ -1,6 +1,6 @@
 # Implementation plan — design for review
 
-**Implementation status, 27 September 2026:** the user authorized I1 setup and the first C++ slice after reviewing the FC contract. The source algebra, independent host checks and ARM analysis build now exist; see [the build report](i1-build-report.md). Earlier design-only authorization notes below record the scope at decision time and are superseded for this bounded I1 work. Actual DSP execution and binary-access equivalence remain open; cache/timing implementation is not started.
+**Implementation status, 29 September 2026:** source algebra, host checks and the ARM analysis build exist; see [the I1 report](i1-build-report.md). User-authorized follow-up adds mathematical cache counts, a configurable synthetic hierarchy, deterministic memory service and a frontend-free testbench; see [the hierarchy/service contract](hierarchy-service-contract.md). Earlier design-only notes below record historical scope and are superseded by these authorizations. Actual DSP execution, binary-access equivalence and physical timing validation remain open.
 
 ## 1. Requirements and authority
 
@@ -243,5 +243,22 @@ I1 constants derive from the pinned CMSIS-NN contract; compiled facts require pi
 Follow section 23 just in time: A for addresses/geometry, B for LRU reuse, C for dependencies/service algebra. D–F require a demonstrated contention or acceleration need; G (energy) stays deferred. Study Falcon selectively; downloading its full artifact is not a prerequisite. Section 21's projects are candidates, not installed/reproduced dependencies: pin revisions and check licenses before reuse. No new literature review or external artifact reproduction was performed in this documentation update.
 
 ## 6. Review checkpoint
+
+**Later 29 September scope update:** the user explicitly requested configurable CH
+and memory modeling, a robust parser, independent direct stimulus and detailed code
+comments. The new [contract](hierarchy-service-contract.md) defines exact synthetic
+LRU and FIFO/credit/beat behavior, analytical periodic-memory and fixed-state cache
+acceleration, and bounded finite fallback. It does not claim full Falcon/NoC
+reproduction, nonblocking caches, generic CPU dependencies or a validated STM32
+memory system. These timing/composition building blocks advance parts of I3/I4;
+they do not complete either gate for the production FC binary.
+
+**29 September 2026 scope update:** the user has no board yet and authorized continued
+simulator development and cache/memory research. I2 now includes geometry, bounded
+set-reuse analysis with explicit state, a non-enumerating cold repeated-sweep formula,
+and conditional roofline bounds. See [the derivation and contract](memory-models.md).
+This supersedes the earlier instruction to stop at I1. It does not close binary
+dynamic-access equivalence or physical validation, introduce general CNN support,
+or establish ART behavior. Instruction dependency/service derivation remains I3.
 
 Kernel identity, quantization policy, board/documentation review, software baseline, memory-placement contract, first synthetic set-associative LRU contract, physical execution profile, and benchmark/validation contract are closed by the user. Full artifact identities, quantization options, alignment compatibility, concrete linked layout, and build verification remain obligations before freezing I1. Exact board setup and cold/repeated entry procedures must be recorded and verified before reproducible timing experiments. The four benchmark model artifacts are selected; dataset/runtime pins, holdout membership and the physical accuracy threshold remain to be frozen under the accepted policy. After implementation is authorized, start with the hand-worked example and explain its algebra before extending it. Do not begin memory or timing infrastructure in this documentation task.
