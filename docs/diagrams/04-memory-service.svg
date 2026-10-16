@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1260" viewBox="0 0 1440 1260" role="img" aria-labelledby="title desc">
+<title id="title">FIFO memory service and in-flight credits</title><desc id="desc">Latency is distinct from initiation spacing and external queueing delay. Implementation study diagram; exact only under the stated synthetic model.</desc>
+<defs><marker id="a2465a8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#2465a8"/></marker><marker id="a137866" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#137866"/></marker><marker id="aa75616" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#a75616"/></marker><marker id="a7151a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#7151a1"/></marker><marker id="a142b43" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#142b43"/></marker></defs>
+<style>text{font-family:Arial,Helvetica,sans-serif} .mono{font-family:Consolas,monospace}</style>
+<rect width="1440" height="1260" fill="#fbfcfe"/>
+<rect width="1440" height="144" fill="#142b43"/>
+<text x="48" y="38" font-size="15" fill="#a5d8f5" font-weight="700">EDGE-ML  /  IMPLEMENTATION ATLAS  /  04</text>
+<text x="48" y="82" font-size="34" fill="#ffffff" font-weight="700">FIFO memory service and in-flight credits</text>
+<text x="48" y="117" font-size="19" fill="#d5e4f1" font-weight="400">Latency is distinct from initiation spacing and external queueing delay</text>
+<rect x="48" y="180" width="650" height="253" rx="14" fill="#edf5ff" stroke="#2465a8" stroke-width="1.5"/>
+<rect x="48" y="195" width="5" height="28" fill="#2465a8"/>
+<text x="70" y="219" font-size="23" fill="#2465a8" font-weight="700">1  Derive one request’s demand</text>
+<text x="70" y="256" font-size="20" fill="#142b43" font-weight="400">Inputs: address A, width n, offered arrival a</text>
+<text x="70" y="284" font-size="20" fill="#142b43" font-weight="400">B = beat_bytes; τ = beat_cycles; L = first_beat_cycles</text>
+<text x="70" y="312" font-size="20" fill="#142b43" font-weight="400">b = ceil(((A mod B) + n) / B)</text>
+<text x="70" y="340" font-size="20" fill="#142b43" font-weight="400">D = L + (b−1)*τ                       duration in cycles</text>
+<text x="70" y="368" font-size="20" fill="#142b43" font-weight="400">I = max(issue_cycles, b*τ)          initiation spacing</text>
+<text x="70" y="396" font-size="20" fill="#142b43" font-weight="400">wire_bytes = b*B                     transferred bytes</text>
+<rect x="744" y="180" width="648" height="253" rx="14" fill="#f4effa" stroke="#7151a1" stroke-width="1.5"/>
+<rect x="744" y="195" width="5" height="28" fill="#7151a1"/>
+<text x="766" y="219" font-size="23" fill="#7151a1" font-weight="700">2  State before admission</text>
+<text x="766" y="256" font-size="20" fill="#142b43" font-weight="400">next_issue: earliest next start allowed by resource use</text>
+<text x="766" y="284" font-size="20" fill="#142b43" font-weight="400">pending[]: sorted completion ticks occupying credits</text>
+<text x="766" y="312" font-size="20" fill="#142b43" font-weight="400">last_arrival: preserves offered FIFO ordering</text>
+<text x="766" y="340" font-size="20" fill="#142b43" font-weight="400">K = outstanding: maximum in-flight requests</text>
+<text x="766" y="368" font-size="20" fill="#142b43" font-weight="400">The offered queue may wait without bound.</text>
+<text x="766" y="396" font-size="20" fill="#142b43" font-weight="400">K is not the capacity of the external waiting queue.</text>
+<rect x="48" y="493" width="650" height="237" rx="14" fill="#edf9f4" stroke="#137866" stroke-width="1.5"/>
+<rect x="48" y="508" width="5" height="28" fill="#137866"/>
+<text x="70" y="532" font-size="23" fill="#137866" font-weight="700">3  Find the admission tick</text>
+<text x="70" y="569" font-size="20" fill="#142b43" font-weight="400">s = max(a, next_issue)</text>
+<text x="70" y="597" font-size="20" fill="#142b43" font-weight="400">Remove pending completions at or before s.</text>
+<text x="70" y="625" font-size="20" fill="#142b43" font-weight="400">If all K credits are occupied:</text>
+<text x="70" y="653" font-size="20" fill="#142b43" font-weight="400">    s = earliest pending completion; release again.</text>
+<text x="70" y="681" font-size="20" fill="#142b43" font-weight="400">Equal-tick completions release credits before admissions.</text>
+<text x="70" y="709" font-size="20" fill="#142b43" font-weight="400">Offered arrivals must be nondecreasing.</text>
+<rect x="744" y="493" width="648" height="237" rx="14" fill="#edf9f4" stroke="#137866" stroke-width="1.5"/>
+<rect x="744" y="508" width="5" height="28" fill="#137866"/>
+<text x="766" y="532" font-size="23" fill="#137866" font-weight="700">4  Complete and preserve state</text>
+<text x="766" y="569" font-size="20" fill="#142b43" font-weight="400">d = s + D</text>
+<text x="766" y="597" font-size="20" fill="#142b43" font-weight="400">next_issue = s + I</text>
+<text x="766" y="625" font-size="20" fill="#142b43" font-weight="400">Insert d into sorted pending[]; record last_arrival = a.</text>
+<text x="766" y="653" font-size="20" fill="#142b43" font-weight="400">Return {arrival=a, start=s, done=d, wire_bytes}.</text>
+<text x="766" y="681" font-size="20" fill="#142b43" font-weight="400">Queueing delay = s−a; response latency = d−a.</text>
+<text x="766" y="709" font-size="20" fill="#142b43" font-weight="400">Validate arithmetic before committing service state.</text>
+<polyline points="372,433 372,493" fill="none" stroke="#2465a8" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#a2465a8)"/>
+<polyline points="1068,433 1068,463 653,463 653,493" fill="none" stroke="#7151a1" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#a7151a1)"/>
+<polyline points="698,611 744,611" fill="none" stroke="#137866" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#a137866)"/>
+<rect x="48" y="793" width="650" height="259" rx="14" fill="#fff5e9" stroke="#a75616" stroke-width="1.5"/>
+<rect x="48" y="808" width="5" height="28" fill="#a75616"/>
+<text x="70" y="832" font-size="23" fill="#a75616" font-weight="700">Aligned 32-byte read  ·  synthetic profile</text>
+<text x="70" y="869" font-size="20" fill="#142b43" font-weight="400">B=8 bytes; τ=2 cycles; L=12 cycles; issue_cycles=2</text>
+<text x="70" y="897" font-size="20" fill="#142b43" font-weight="400">b=4 beats → D=12+3*2=18 cycles</text>
+<text x="70" y="925" font-size="20" fill="#142b43" font-weight="400">I=max(2,4*2)=8 cycles; wire_bytes=32</text>
+<text x="70" y="953" font-size="20" fill="#142b43" font-weight="400">K=4 allows overlap; K=1 forces serialized completions.</text>
+<text x="70" y="981" font-size="20" fill="#142b43" font-weight="400">A=7, n=2 would touch 2 beats: wire_bytes=16.</text>
+<text x="70" y="1009" font-size="20" fill="#142b43" font-weight="400">An access can consume more bus bytes than useful bytes.</text>
+<rect x="744" y="793" width="648" height="259" rx="14" fill="#f0f4f8" stroke="#142b43" stroke-width="1.5"/>
+<rect x="744" y="808" width="5" height="28" fill="#142b43"/>
+<text x="766" y="832" font-size="23" fill="#142b43" font-weight="700">Model limits and composition</text>
+<text x="766" y="869" font-size="20" fill="#142b43" font-weight="400">One FIFO stream, one clock, fixed first-beat latency.</text>
+<text x="766" y="897" font-size="20" fill="#142b43" font-weight="400">No bank conflicts, refresh, priorities or row-hit rules.</text>
+<text x="766" y="925" font-size="20" fill="#142b43" font-weight="400">No write data or command/address bus traffic.</text>
+<text x="766" y="953" font-size="20" fill="#142b43" font-weight="400">Direct memory tests expose pipelining.</text>
+<text x="766" y="981" font-size="20" fill="#142b43" font-weight="400">The cache path waits for full responses and is blocking.</text>
+<text x="766" y="1009" font-size="20" fill="#142b43" font-weight="400">Save next_issue, pending and last_arrival for continuation.</text>
+<path d="M 48 1183 H 1392" stroke="#d4dfe9"/>
+<text x="48" y="1212" font-size="17" fill="#51657a" font-weight="400">SCOPE  Synthetic read-only model • one clock • no board-accuracy claim</text>
+<text x="48" y="1238" font-size="16" fill="#51657a" font-weight="400">CODE  src/service.cpp: demand, MemoryService::submit • include/edge/service.hpp</text>
+</svg>

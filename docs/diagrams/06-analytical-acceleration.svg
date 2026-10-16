@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1310" viewBox="0 0 1440 1310" role="img" aria-labelledby="title desc">
+<title id="title">Two analytical fast paths, two different proofs</title><desc id="desc">No trace expansion for periodic memory; no extrapolation without cache-state equality. Implementation study diagram; exact only under the stated synthetic model.</desc>
+<defs><marker id="a2465a8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#2465a8"/></marker><marker id="a137866" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#137866"/></marker><marker id="aa75616" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#a75616"/></marker><marker id="a7151a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#7151a1"/></marker><marker id="a142b43" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#142b43"/></marker></defs>
+<style>text{font-family:Arial,Helvetica,sans-serif} .mono{font-family:Consolas,monospace}</style>
+<rect width="1440" height="1310" fill="#fbfcfe"/>
+<rect width="1440" height="144" fill="#142b43"/>
+<text x="48" y="38" font-size="15" fill="#a5d8f5" font-weight="700">EDGE-ML  /  IMPLEMENTATION ATLAS  /  06</text>
+<text x="48" y="82" font-size="34" fill="#ffffff" font-weight="700">Two analytical fast paths, two different proofs</text>
+<text x="48" y="117" font-size="19" fill="#d5e4f1" font-weight="400">No trace expansion for periodic memory; no extrapolation without cache-state equality</text>
+<rect x="48" y="180" width="650" height="231" rx="14" fill="#edf9f4" stroke="#137866" stroke-width="1.5"/>
+<rect x="48" y="195" width="5" height="28" fill="#137866"/>
+<text x="70" y="219" font-size="23" fill="#137866" font-weight="700">periodic  ·  direct memory only</text>
+<text x="70" y="256" font-size="20" fill="#142b43" font-weight="400">Cold service; same address and width for every request.</text>
+<text x="70" y="284" font-size="20" fill="#142b43" font-weight="400">Open-loop arrivals: a_i = a0 + i*P</text>
+<text x="70" y="312" font-size="20" fill="#142b43" font-weight="400">D, I and K are constant; request index i starts at 0.</text>
+<text x="70" y="340" font-size="20" fill="#142b43" font-weight="400">s_i = max(a_i, s_(i−1)+I, s_(i−K)+D)</text>
+<text x="70" y="368" font-size="20" fill="#142b43" font-weight="400">Omit nonexistent predecessor terms.</text>
+<rect x="744" y="180" width="648" height="231" rx="14" fill="#edf5ff" stroke="#2465a8" stroke-width="1.5"/>
+<rect x="744" y="195" width="5" height="28" fill="#2465a8"/>
+<text x="766" y="219" font-size="23" fill="#2465a8" font-weight="700">stable_blocks  ·  cache entry only</text>
+<text x="766" y="256" font-size="20" fill="#142b43" font-weight="400">Closed-loop generated requests; one fixed address block.</text>
+<text x="766" y="284" font-size="20" fill="#142b43" font-weight="400">A_i = base + (i mod address_period)*stride</text>
+<text x="766" y="312" font-size="20" fill="#142b43" font-weight="400">Snapshot at a drained boundary before one full block.</text>
+<text x="766" y="340" font-size="20" fill="#142b43" font-weight="400">Evaluate the block using the finite hierarchy path.</text>
+<text x="766" y="368" font-size="20" fill="#142b43" font-weight="400">Compare the complete normalized boundary state.</text>
+<polyline points="373,411 373,461" fill="none" stroke="#137866" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#a137866)"/>
+<polyline points="1068,411 1068,461" fill="none" stroke="#2465a8" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#a2465a8)"/>
+<rect x="48" y="461" width="650" height="237" rx="14" fill="#edf9f4" stroke="#137866" stroke-width="1.5"/>
+<rect x="48" y="476" width="5" height="28" fill="#137866"/>
+<text x="70" y="500" font-size="23" fill="#137866" font-weight="700">Closed-form solution</text>
+<text x="70" y="537" font-size="20" fill="#142b43" font-weight="400">J = max(P,I); H = max(K*J,D)</text>
+<text x="70" y="565" font-size="20" fill="#142b43" font-weight="400">s_i = a0 + floor(i/K)*H + (i mod K)*J</text>
+<text x="70" y="593" font-size="20" fill="#142b43" font-weight="400">d_i = s_i + D</text>
+<text x="70" y="621" font-size="20" fill="#142b43" font-weight="400">Each group of K admissions needs at least max(K*J,D).</text>
+<text x="70" y="649" font-size="20" fill="#142b43" font-weight="400">Closed-form quotient/remainder sums yield mean latency.</text>
+<text x="70" y="677" font-size="20" fill="#142b43" font-weight="400">Counts O(1); pending-state construction O(min(N,K)).</text>
+<rect x="744" y="461" width="648" height="237" rx="14" fill="#edf5ff" stroke="#2465a8" stroke-width="1.5"/>
+<rect x="744" y="476" width="5" height="28" fill="#2465a8"/>
+<text x="766" y="500" font-size="23" fill="#2465a8" font-weight="700">Proof obligation: identical state</text>
+<text x="766" y="537" font-size="20" fill="#142b43" font-weight="400">All levels, sets, line identities and MRU ordering match.</text>
+<text x="766" y="565" font-size="20" fill="#142b43" font-weight="400">Residual issue readiness matches relative to the boundary.</text>
+<text x="766" y="593" font-size="20" fill="#142b43" font-weight="400">No completion outlives the drained boundary.</text>
+<text x="766" y="621" font-size="20" fill="#142b43" font-weight="400">Configuration and the next stimulus block are identical.</text>
+<text x="766" y="649" font-size="20" fill="#142b43" font-weight="400">Equal state → equal future deltas by determinism.</text>
+<text x="766" y="677" font-size="20" fill="#142b43" font-weight="400">Equal miss counts alone are not sufficient.</text>
+<polyline points="373,698 373,750" fill="none" stroke="#137866" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#a137866)"/>
+<polyline points="1068,698 1068,750" fill="none" stroke="#2465a8" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#a2465a8)"/>
+<rect x="48" y="750" width="650" height="247" rx="14" fill="#edf9f4" stroke="#137866" stroke-width="1.5"/>
+<rect x="48" y="765" width="5" height="28" fill="#137866"/>
+<text x="70" y="789" font-size="23" fill="#137866" font-weight="700">Periodic output and example</text>
+<text x="70" y="826" font-size="20" fill="#142b43" font-weight="400">N=1,000,000,000; D=18; I=8; K=4; P=0</text>
+<text x="70" y="854" font-size="20" fill="#142b43" font-weight="400">last_done = 18 + (N−1)*8 = 8,000,000,010</text>
+<text x="70" y="882" font-size="20" fill="#142b43" font-weight="400">No request rows are enumerated or fabricated.</text>
+<text x="70" y="910" font-size="20" fill="#142b43" font-weight="400">Preserve next issue time, pending and last arrival.</text>
+<text x="70" y="938" font-size="20" fill="#142b43" font-weight="400">Future service must agree with finite continuation.</text>
+<text x="70" y="966" font-size="20" fill="#142b43" font-weight="400">Parameters are synthetic, not STM32 flash data.</text>
+<rect x="744" y="750" width="648" height="247" rx="14" fill="#edf5ff" stroke="#2465a8" stroke-width="1.5"/>
+<rect x="744" y="765" width="5" height="28" fill="#2465a8"/>
+<text x="766" y="789" font-size="23" fill="#2465a8" font-weight="700">Skip only after proof</text>
+<text x="766" y="826" font-size="20" fill="#142b43" font-weight="400">Multiply one-block counter / duration / latency deltas.</text>
+<text x="766" y="854" font-size="20" fill="#142b43" font-weight="400">Translate readiness to the new boundary.</text>
+<text x="766" y="882" font-size="20" fill="#142b43" font-weight="400">If equality fails, continue finite work within its budget.</text>
+<text x="766" y="910" font-size="20" fill="#142b43" font-weight="400">One billion cache requests: 8 evaluated, rest skipped.</text>
+<text x="766" y="938" font-size="20" fill="#142b43" font-weight="400">A repeating conflict-miss pattern may also be eligible.</text>
+<text x="766" y="966" font-size="20" fill="#142b43" font-weight="400">Open-loop growth and multi-block cycles are not skipped.</text>
+<rect x="48" y="1045" width="1344" height="130" rx="14" fill="#fff5e9" stroke="#a75616" stroke-width="1.5"/>
+<rect x="48" y="1060" width="5" height="28" fill="#a75616"/>
+<text x="70" y="1084" font-size="23" fill="#a75616" font-weight="700">Evidence boundary</text>
+<text x="70" y="1121" font-size="20" fill="#142b43" font-weight="400">These are project derivations under the stated contracts, not a full Falcon implementation.</text>
+<text x="70" y="1149" font-size="20" fill="#142b43" font-weight="400">Independent replay checks counts, timing, final state and future continuation.</text>
+<path d="M 48 1233 H 1392" stroke="#d4dfe9"/>
+<text x="48" y="1262" font-size="17" fill="#51657a" font-weight="400">SCOPE  Synthetic read-only model • one clock • no board-accuracy claim</text>
+<text x="48" y="1288" font-size="16" fill="#51657a" font-weight="400">CODE  src/service.cpp: periodic_memory • src/testbench.cpp: run_testbench • src/hierarchy.cpp: boundary_key</text>
+</svg>

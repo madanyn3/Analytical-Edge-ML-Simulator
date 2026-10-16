@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1250" viewBox="0 0 1440 1250" role="img" aria-labelledby="title desc">
+<title id="title">Configuration is a validated model contract</title><desc id="desc">A strict INI dialect with explicit units, provenance and unsupported-policy rejection. Implementation study diagram; exact only under the stated synthetic model.</desc>
+<defs><marker id="a2465a8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#2465a8"/></marker><marker id="a137866" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#137866"/></marker><marker id="aa75616" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#a75616"/></marker><marker id="a7151a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#7151a1"/></marker><marker id="a142b43" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#142b43"/></marker></defs>
+<style>text{font-family:Arial,Helvetica,sans-serif} .mono{font-family:Consolas,monospace}</style>
+<rect width="1440" height="1250" fill="#fbfcfe"/>
+<rect width="1440" height="144" fill="#142b43"/>
+<text x="48" y="38" font-size="15" fill="#a5d8f5" font-weight="700">EDGE-ML  /  IMPLEMENTATION ATLAS  /  07</text>
+<text x="48" y="82" font-size="34" fill="#ffffff" font-weight="700">Configuration is a validated model contract</text>
+<text x="48" y="117" font-size="19" fill="#d5e4f1" font-weight="400">A strict INI dialect with explicit units, provenance and unsupported-policy rejection</text>
+<rect x="48" y="180" width="390" height="200" rx="14" fill="#edf5ff" stroke="#2465a8" stroke-width="1.5"/>
+<rect x="48" y="195" width="5" height="28" fill="#2465a8"/>
+<text x="70" y="219" font-size="23" fill="#2465a8" font-weight="700">1  Read and tokenize</text>
+<text x="70" y="256" font-size="18" fill="#142b43" font-weight="400">[model], [memory], [stimulus]</text>
+<text x="70" y="282" font-size="18" fill="#142b43" font-weight="400">[cache.NAME] in level order</text>
+<text x="70" y="308" font-size="18" fill="#142b43" font-weight="400">key=value; # comments</text>
+<text x="70" y="334" font-size="18" fill="#142b43" font-weight="400">Unsigned decimal or 0x integers</text>
+<text x="70" y="360" font-size="18" fill="#142b43" font-weight="400">1 MiB file / 4096-byte line cap</text>
+<rect x="524" y="180" width="390" height="200" rx="14" fill="#edf9f4" stroke="#137866" stroke-width="1.5"/>
+<rect x="524" y="195" width="5" height="28" fill="#137866"/>
+<text x="546" y="219" font-size="23" fill="#137866" font-weight="700">2  Consume the schema</text>
+<text x="546" y="256" font-size="18" fill="#142b43" font-weight="400">Every key is required.</text>
+<text x="546" y="282" font-size="18" fill="#142b43" font-weight="400">Duplicate sections/keys fail.</text>
+<text x="546" y="308" font-size="18" fill="#142b43" font-weight="400">Unused keys reveal typos.</text>
+<text x="546" y="334" font-size="18" fill="#142b43" font-weight="400">No implicit physical defaults.</text>
+<text x="546" y="360" font-size="18" fill="#142b43" font-weight="400">Version must be 1.</text>
+<rect x="1000" y="180" width="392" height="200" rx="14" fill="#f4effa" stroke="#7151a1" stroke-width="1.5"/>
+<rect x="1000" y="195" width="5" height="28" fill="#7151a1"/>
+<text x="1022" y="219" font-size="23" fill="#7151a1" font-weight="700">3  Validate relationships</text>
+<text x="1022" y="256" font-size="18" fill="#142b43" font-weight="400">Positive dimensions / timings</text>
+<text x="1022" y="282" font-size="18" fill="#142b43" font-weight="400">Nested cache line sizes</text>
+<text x="1022" y="308" font-size="18" fill="#142b43" font-weight="400">Initial-state capacity / inclusion</text>
+<text x="1022" y="334" font-size="18" fill="#142b43" font-weight="400">Entry / mode / engine contract</text>
+<text x="1022" y="360" font-size="18" fill="#142b43" font-weight="400">Checked address/count arithmetic</text>
+<polyline points="438,278 524,278" fill="none" stroke="#2465a8" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#a2465a8)"/>
+<polyline points="914,278 1000,278" fill="none" stroke="#137866" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#a137866)"/>
+<rect x="48" y="448" width="650" height="231" rx="14" fill="#edf5ff" stroke="#2465a8" stroke-width="1.5"/>
+<rect x="48" y="463" width="5" height="28" fill="#2465a8"/>
+<text x="70" y="487" font-size="23" fill="#2465a8" font-weight="700">Hardware and policy knobs</text>
+<text x="70" y="524" font-size="19" fill="#142b43" font-weight="400">model: clock_hz; inclusive or noninclusive</text>
+<text x="70" y="551" font-size="19" fill="#142b43" font-weight="400">Policies: read_only, no prefetch, blocking caches</text>
+<text x="70" y="578" font-size="19" fill="#142b43" font-weight="400">cache: line_bytes / sets / ways; LRU replacement</text>
+<text x="70" y="605" font-size="19" fill="#142b43" font-weight="400">cache: lookup_cycles / fill_cycles / initial_lines</text>
+<text x="70" y="632" font-size="19" fill="#142b43" font-weight="400">memory: first_beat_cycles / beat_bytes / beat_cycles</text>
+<text x="70" y="659" font-size="19" fill="#142b43" font-weight="400">memory: issue_cycles / outstanding; FIFO</text>
+<rect x="744" y="448" width="648" height="231" rx="14" fill="#edf9f4" stroke="#137866" stroke-width="1.5"/>
+<rect x="744" y="463" width="5" height="28" fill="#137866"/>
+<text x="766" y="487" font-size="23" fill="#137866" font-weight="700">Stimulus and budget knobs</text>
+<text x="766" y="524" font-size="19" fill="#142b43" font-weight="400">entry: a configured cache name, or memory</text>
+<text x="766" y="551" font-size="19" fill="#142b43" font-weight="400">mode: open_loop or closed_loop</text>
+<text x="766" y="578" font-size="19" fill="#142b43" font-weight="400">engine: finite, periodic or stable_blocks</text>
+<text x="766" y="605" font-size="19" fill="#142b43" font-weight="400">count / address / bytes / stride / address_period</text>
+<text x="766" y="632" font-size="19" fill="#142b43" font-weight="400">arrival_cycles / spacing_cycles</text>
+<text x="766" y="659" font-size="19" fill="#142b43" font-weight="400">max_requests / max_transactions</text>
+<rect x="48" y="735" width="650" height="281" rx="14" fill="#f4effa" stroke="#7151a1" stroke-width="1.5"/>
+<rect x="48" y="750" width="5" height="28" fill="#7151a1"/>
+<text x="70" y="774" font-size="23" fill="#7151a1" font-weight="700">State and provenance are inputs</text>
+<text x="70" y="811" font-size="20" fill="#142b43" font-weight="400">initial_lines are line numbers, not byte addresses.</text>
+<text x="70" y="839" font-size="20" fill="#142b43" font-weight="400">List in MRU→LRU order within each set.</text>
+<text x="70" y="867" font-size="20" fill="#142b43" font-weight="400">Inclusive initial copies must exist at lower levels.</text>
+<text x="70" y="895" font-size="20" fill="#142b43" font-weight="400">Module provenance text is mandatory.</text>
+<text x="70" y="923" font-size="20" fill="#142b43" font-weight="400">Scenario values are explicit hypothetical choices.</text>
+<text x="70" y="951" font-size="20" fill="#142b43" font-weight="400">The report prints the effective configuration.</text>
+<text x="70" y="979" font-size="20" fill="#142b43" font-weight="400">It should be possible to reproduce every result.</text>
+<rect x="744" y="735" width="648" height="281" rx="14" fill="#fff5e9" stroke="#a75616" stroke-width="1.5"/>
+<rect x="744" y="750" width="5" height="28" fill="#a75616"/>
+<text x="766" y="774" font-size="23" fill="#a75616" font-weight="700">Reject before executing stimulus</text>
+<text x="766" y="811" font-size="20" fill="#142b43" font-weight="400">Unknown keys, missing keys and unsupported versions</text>
+<text x="766" y="839" font-size="20" fill="#142b43" font-weight="400">Unsupported replacement, prefetch or concurrency</text>
+<text x="766" y="867" font-size="20" fill="#142b43" font-weight="400">Zero/overflowing geometry; invalid addresses and widths</text>
+<text x="766" y="895" font-size="20" fill="#142b43" font-weight="400">Invalid entry or engine/mode combinations</text>
+<text x="766" y="923" font-size="20" fill="#142b43" font-weight="400">Duplicate/overfull/inconsistent initial state</text>
+<text x="766" y="951" font-size="20" fill="#142b43" font-weight="400">Parser diagnostics identify source, key and/or line.</text>
+<text x="766" y="979" font-size="20" fill="#142b43" font-weight="400">No includes, environment expansion or external schemas.</text>
+<text x="48" y="1080" font-size="24" fill="#142b43" font-weight="700">Typed output: ModelConfig → CacheConfig[] + ServiceConfig + StimulusConfig</text>
+<path d="M 48 1173 H 1392" stroke="#d4dfe9"/>
+<text x="48" y="1202" font-size="17" fill="#51657a" font-weight="400">SCOPE  Synthetic read-only model • one clock • no board-accuracy claim</text>
+<text x="48" y="1228" font-size="16" fill="#51657a" font-weight="400">CODE  src/config.cpp: parse_config, validate_config, describe_config • include/edge/config.hpp</text>
+</svg>

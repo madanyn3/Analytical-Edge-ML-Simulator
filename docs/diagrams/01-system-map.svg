@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1120" viewBox="0 0 1440 1120" role="img" aria-labelledby="title desc">
+<title id="title">From configuration to an explainable result</title><desc id="desc">Module boundaries, data flow and the three execution engines. Implementation study diagram; exact only under the stated synthetic model.</desc>
+<defs><marker id="a2465a8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#2465a8"/></marker><marker id="a137866" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#137866"/></marker><marker id="aa75616" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#a75616"/></marker><marker id="a7151a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#7151a1"/></marker><marker id="a142b43" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#142b43"/></marker></defs>
+<style>text{font-family:Arial,Helvetica,sans-serif} .mono{font-family:Consolas,monospace}</style>
+<rect width="1440" height="1120" fill="#fbfcfe"/>
+<rect width="1440" height="144" fill="#142b43"/>
+<text x="48" y="38" font-size="15" fill="#a5d8f5" font-weight="700">EDGE-ML  /  IMPLEMENTATION ATLAS  /  01</text>
+<text x="48" y="82" font-size="34" fill="#ffffff" font-weight="700">From configuration to an explainable result</text>
+<text x="48" y="117" font-size="19" fill="#d5e4f1" font-weight="400">Module boundaries, data flow and the three execution engines</text>
+<rect x="48" y="180" width="390" height="195" rx="14" fill="#edf5ff" stroke="#2465a8" stroke-width="1.5"/>
+<rect x="48" y="195" width="5" height="28" fill="#2465a8"/>
+<text x="70" y="219" font-size="23" fill="#2465a8" font-weight="700">1  Configuration</text>
+<text x="70" y="256" font-size="17" fill="#142b43" font-weight="400">ModelConfig: clock and policies</text>
+<text x="70" y="281" font-size="17" fill="#142b43" font-weight="400">CacheConfig[]: ordered levels</text>
+<text x="70" y="306" font-size="17" fill="#142b43" font-weight="400">ServiceConfig: latency / beats / credits</text>
+<text x="70" y="331" font-size="17" fill="#142b43" font-weight="400">StimulusConfig: entry / mode / engine</text>
+<rect x="524" y="180" width="390" height="195" rx="14" fill="#edf9f4" stroke="#137866" stroke-width="1.5"/>
+<rect x="524" y="195" width="5" height="28" fill="#137866"/>
+<text x="546" y="219" font-size="23" fill="#137866" font-weight="700">2  Request source</text>
+<text x="546" y="256" font-size="19" fill="#142b43" font-weight="400">Generated address pattern or CSV</text>
+<text x="546" y="283" font-size="19" fill="#142b43" font-weight="400">Request = {arrival, address, bytes}</text>
+<text x="546" y="310" font-size="19" fill="#142b43" font-weight="400">One injection entry per run</text>
+<text x="546" y="337" font-size="19" fill="#142b43" font-weight="400">No CPU frontend required</text>
+<rect x="1000" y="180" width="392" height="195" rx="14" fill="#f4effa" stroke="#7151a1" stroke-width="1.5"/>
+<rect x="1000" y="195" width="5" height="28" fill="#7151a1"/>
+<text x="1022" y="219" font-size="23" fill="#7151a1" font-weight="700">3  Engine selection</text>
+<text x="1022" y="256" font-size="18" fill="#142b43" font-weight="400">finite: bounded request processing</text>
+<text x="1022" y="282" font-size="18" fill="#142b43" font-weight="400">periodic: direct-memory closed form</text>
+<text x="1022" y="308" font-size="18" fill="#142b43" font-weight="400">stable_blocks: cache fixed-point proof</text>
+<text x="1022" y="334" font-size="18" fill="#142b43" font-weight="400">Every unsupported combination fails</text>
+<polyline points="438,273 524,273" fill="none" stroke="#2465a8" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#a2465a8)"/>
+<polyline points="914,273 1000,273" fill="none" stroke="#137866" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#a137866)"/>
+<rect x="48" y="455" width="625" height="225" rx="14" fill="#edf5ff" stroke="#2465a8" stroke-width="1.5"/>
+<rect x="48" y="470" width="5" height="28" fill="#2465a8"/>
+<text x="70" y="494" font-size="23" fill="#2465a8" font-weight="700">Cache path  ·  Hierarchy::submit / access</text>
+<text x="70" y="531" font-size="20" fill="#142b43" font-weight="400">Admission waits for the previous cache request.</text>
+<text x="70" y="559" font-size="20" fill="#142b43" font-weight="400">Each level: split lines → lookup → hit or full-line miss.</text>
+<text x="70" y="587" font-size="20" fill="#142b43" font-weight="400">Misses recurse down; completion and fills return upward.</text>
+<text x="70" y="615" font-size="20" fill="#142b43" font-weight="400">Inclusive eviction can invalidate upper copies.</text>
+<text x="70" y="643" font-size="20" fill="#142b43" font-weight="400">This is the bounded stateful fallback.</text>
+<rect x="766" y="455" width="626" height="225" rx="14" fill="#edf9f4" stroke="#137866" stroke-width="1.5"/>
+<rect x="766" y="470" width="5" height="28" fill="#137866"/>
+<text x="788" y="494" font-size="23" fill="#137866" font-weight="700">Memory path  ·  MemoryService::submit</text>
+<text x="788" y="531" font-size="20" fill="#142b43" font-weight="400">FIFO offered requests; finite in-flight credits.</text>
+<text x="788" y="559" font-size="20" fill="#142b43" font-weight="400">Beat demand sets duration and initiation spacing.</text>
+<text x="788" y="587" font-size="20" fill="#142b43" font-weight="400">Direct memory injection bypasses the cache gate.</text>
+<text x="788" y="615" font-size="20" fill="#142b43" font-weight="400">Independent requests can overlap in flight.</text>
+<text x="788" y="643" font-size="20" fill="#142b43" font-weight="400">periodic_memory solves eligible streams algebraically.</text>
+<polyline points="1195,375 1195,416 1080,416 1080,455" fill="none" stroke="#7151a1" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#a7151a1)"/>
+<polyline points="1100,416 350,416 350,455" fill="none" stroke="#7151a1" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#a7151a1)"/>
+<polyline points="673,557 766,557" fill="none" stroke="#2465a8" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#a2465a8)"/>
+<text x="683" y="539" font-size="16" fill="#2465a8" font-weight="400">miss</text>
+<rect x="48" y="755" width="625" height="220" rx="14" fill="#edf9f4" stroke="#137866" stroke-width="1.5"/>
+<rect x="48" y="770" width="5" height="28" fill="#137866"/>
+<text x="70" y="794" font-size="23" fill="#137866" font-weight="700">Reports and preserved state</text>
+<text x="70" y="831" font-size="18" fill="#142b43" font-weight="400">Per-level hits / misses / evictions / invalidations / fills</text>
+<text x="70" y="857" font-size="18" fill="#142b43" font-weight="400">Requested bytes and memory wire bytes stay distinct.</text>
+<text x="70" y="883" font-size="18" fill="#142b43" font-weight="400">Completion, latency and throughput include defined boundaries.</text>
+<text x="70" y="909" font-size="18" fill="#142b43" font-weight="400">Cache MRU order; memory issue readiness and pending credits</text>
+<text x="70" y="935" font-size="18" fill="#142b43" font-weight="400">Effective config and provenance travel with each report.</text>
+<rect x="766" y="755" width="626" height="220" rx="14" fill="#fff5e9" stroke="#a75616" stroke-width="1.5"/>
+<rect x="766" y="770" width="5" height="28" fill="#a75616"/>
+<text x="788" y="794" font-size="23" fill="#a75616" font-weight="700">Independent correctness checks</text>
+<text x="788" y="831" font-size="19" fill="#142b43" font-weight="400">Timestamp-based resident maps check cache behavior.</text>
+<text x="788" y="858" font-size="19" fill="#142b43" font-weight="400">Tiny discrete-tick reference checks memory admissions.</text>
+<text x="788" y="885" font-size="19" fill="#142b43" font-weight="400">Compare final state and future continuation, not just totals.</text>
+<text x="788" y="912" font-size="19" fill="#142b43" font-weight="400">Analytical skips are counted separately from evaluated rows.</text>
+<text x="788" y="939" font-size="19" fill="#142b43" font-weight="400">Hardware timing validation remains a later gate.</text>
+<polyline points="360,680 360,755" fill="none" stroke="#2465a8" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#a2465a8)"/>
+<polyline points="1080,680 1080,720 600,720 600,755" fill="none" stroke="#137866" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#a137866)"/>
+<path d="M 48 1043 H 1392" stroke="#d4dfe9"/>
+<text x="48" y="1072" font-size="17" fill="#51657a" font-weight="400">SCOPE  Synthetic read-only model • one clock • no board-accuracy claim</text>
+<text x="48" y="1098" font-size="16" fill="#51657a" font-weight="400">CODE  config.cpp • hierarchy.cpp • service.cpp • testbench.cpp • hierarchy_tests.cpp</text>
+</svg>

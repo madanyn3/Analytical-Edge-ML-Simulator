@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1280" viewBox="0 0 1440 1280" role="img" aria-labelledby="title desc">
+<title id="title">One request through the cache hierarchy</title><desc id="desc">Blocking read path, full-line allocation, LRU replacement and inclusion. Implementation study diagram; exact only under the stated synthetic model.</desc>
+<defs><marker id="a2465a8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#2465a8"/></marker><marker id="a137866" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#137866"/></marker><marker id="aa75616" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#a75616"/></marker><marker id="a7151a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#7151a1"/></marker><marker id="a142b43" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#142b43"/></marker></defs>
+<style>text{font-family:Arial,Helvetica,sans-serif} .mono{font-family:Consolas,monospace}</style>
+<rect width="1440" height="1280" fill="#fbfcfe"/>
+<rect width="1440" height="144" fill="#142b43"/>
+<text x="48" y="38" font-size="15" fill="#a5d8f5" font-weight="700">EDGE-ML  /  IMPLEMENTATION ATLAS  /  02</text>
+<text x="48" y="82" font-size="34" fill="#ffffff" font-weight="700">One request through the cache hierarchy</text>
+<text x="48" y="117" font-size="19" fill="#d5e4f1" font-weight="400">Blocking read path, full-line allocation, LRU replacement and inclusion</text>
+<rect x="48" y="177" width="414" height="172" rx="14" fill="#edf5ff" stroke="#2465a8" stroke-width="1.5"/>
+<rect x="48" y="192" width="5" height="28" fill="#2465a8"/>
+<text x="70" y="216" font-size="23" fill="#2465a8" font-weight="700">1  Admit a request</text>
+<text x="70" y="253" font-size="20" fill="#142b43" font-weight="400">start = max(arrival, ready)</text>
+<text x="70" y="281" font-size="20" fill="#142b43" font-weight="400">ready is prior request completion.</text>
+<text x="70" y="309" font-size="20" fill="#142b43" font-weight="400">Validate width, ordering and entry.</text>
+<rect x="513" y="177" width="414" height="172" rx="14" fill="#edf5ff" stroke="#2465a8" stroke-width="1.5"/>
+<rect x="513" y="192" width="5" height="28" fill="#2465a8"/>
+<text x="535" y="216" font-size="23" fill="#2465a8" font-weight="700">2  Split into line references</text>
+<text x="535" y="253" font-size="20" fill="#142b43" font-weight="400">first = floor(address / line_bytes)</text>
+<text x="535" y="281" font-size="20" fill="#142b43" font-weight="400">last = floor((address+bytes−1)/L)</text>
+<text x="535" y="309" font-size="20" fill="#142b43" font-weight="400">Process lines in ascending order.</text>
+<rect x="978" y="177" width="414" height="172" rx="14" fill="#edf5ff" stroke="#2465a8" stroke-width="1.5"/>
+<rect x="978" y="192" width="5" height="28" fill="#2465a8"/>
+<text x="1000" y="216" font-size="23" fill="#2465a8" font-weight="700">3  Look up this level</text>
+<text x="1000" y="253" font-size="20" fill="#142b43" font-weight="400">set = line mod sets</text>
+<text x="1000" y="281" font-size="20" fill="#142b43" font-weight="400">Charge lookup_cycles per line.</text>
+<text x="1000" y="309" font-size="20" fill="#142b43" font-weight="400">Search the selected resident set.</text>
+<polyline points="462,260 513,260" fill="none" stroke="#2465a8" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#a2465a8)"/>
+<polyline points="927,260 978,260" fill="none" stroke="#2465a8" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#a2465a8)"/>
+<rect x="48" y="425" width="590" height="177" rx="14" fill="#edf9f4" stroke="#137866" stroke-width="1.5"/>
+<rect x="48" y="440" width="5" height="28" fill="#137866"/>
+<text x="70" y="464" font-size="23" fill="#137866" font-weight="700">HIT  ·  no lower request</text>
+<text x="70" y="501" font-size="20" fill="#142b43" font-weight="400">Increment hits; remove the old MRU position.</text>
+<text x="70" y="529" font-size="20" fill="#142b43" font-weight="400">Insert the line at MRU; completion = lookup_done.</text>
+<text x="70" y="557" font-size="20" fill="#142b43" font-weight="400">A hit does not refresh replacement order below.</text>
+<rect x="800" y="425" width="592" height="177" rx="14" fill="#fff5e9" stroke="#a75616" stroke-width="1.5"/>
+<rect x="800" y="440" width="5" height="28" fill="#a75616"/>
+<text x="822" y="464" font-size="23" fill="#a75616" font-weight="700">MISS  ·  fetch the entire line</text>
+<text x="822" y="501" font-size="20" fill="#142b43" font-weight="400">Increment misses; base = line * line_bytes.</text>
+<text x="822" y="529" font-size="20" fill="#142b43" font-weight="400">Recurse to the next level, or submit to memory.</text>
+<text x="822" y="557" font-size="20" fill="#142b43" font-weight="400">Wait for the complete response; add fill_cycles.</text>
+<polyline points="1185,349 1185,389 345,389 345,425" fill="none" stroke="#137866" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#a137866)"/>
+<text x="548" y="378" font-size="16" fill="#137866" font-weight="400">resident</text>
+<polyline points="1260,349 1260,425" fill="none" stroke="#a75616" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#aa75616)"/>
+<text x="1277" y="395" font-size="16" fill="#a75616" font-weight="400">absent</text>
+<rect x="800" y="657" width="592" height="181" rx="14" fill="#fff5e9" stroke="#a75616" stroke-width="1.5"/>
+<rect x="800" y="672" width="5" height="28" fill="#a75616"/>
+<text x="822" y="696" font-size="23" fill="#a75616" font-weight="700">After the lower response</text>
+<text x="822" y="733" font-size="19" fill="#142b43" font-weight="400">Count this level’s full-line fill bytes.</text>
+<text x="822" y="760" font-size="19" fill="#142b43" font-weight="400">Choose a victim only now: recursion may invalidate lines.</text>
+<text x="822" y="787" font-size="19" fill="#142b43" font-weight="400">If full: evict LRU; otherwise use available space.</text>
+<text x="822" y="814" font-size="19" fill="#142b43" font-weight="400">Install at MRU; repeat for the next crossing line.</text>
+<polyline points="1100,602 1100,657" fill="none" stroke="#a75616" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#aa75616)"/>
+<rect x="48" y="657" width="590" height="181" rx="14" fill="#edf9f4" stroke="#137866" stroke-width="1.5"/>
+<rect x="48" y="672" width="5" height="28" fill="#137866"/>
+<text x="70" y="696" font-size="23" fill="#137866" font-weight="700">Completion and accounting</text>
+<text x="70" y="733" font-size="19" fill="#142b43" font-weight="400">After all lines: ready = done; return Completion.</text>
+<text x="70" y="760" font-size="19" fill="#142b43" font-weight="400">A later cache request cannot pass this completion.</text>
+<text x="70" y="787" font-size="19" fill="#142b43" font-weight="400">References = hits + misses at each level.</text>
+<text x="70" y="814" font-size="19" fill="#142b43" font-weight="400">Invalidations and local evictions are separate counters.</text>
+<polyline points="345,602 345,657" fill="none" stroke="#137866" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#a137866)"/>
+<polyline points="800,755 638,755" fill="none" stroke="#137866" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#a137866)"/>
+<rect x="48" y="901" width="650" height="231" rx="14" fill="#f4effa" stroke="#7151a1" stroke-width="1.5"/>
+<rect x="48" y="916" width="5" height="28" fill="#7151a1"/>
+<text x="70" y="940" font-size="23" fill="#7151a1" font-weight="700">Inclusive example  ·  lower line = 32 bytes</text>
+<text x="70" y="977" font-size="20" fill="#142b43" font-weight="400">Lower line 0 covers byte addresses 0…31.</text>
+<text x="70" y="1005" font-size="20" fill="#142b43" font-weight="400">Upper 16-byte lines 0 and 1 both lie inside that span.</text>
+<text x="70" y="1033" font-size="20" fill="#142b43" font-weight="400">Evict lower line 0 → invalidate both upper copies.</text>
+<text x="70" y="1061" font-size="20" fill="#142b43" font-weight="400">Surviving upper lines retain their relative MRU order.</text>
+<text x="70" y="1089" font-size="20" fill="#142b43" font-weight="400">Invalidation is atomic with no extra charged latency.</text>
+<rect x="744" y="901" width="648" height="231" rx="14" fill="#f0f4f8" stroke="#142b43" stroke-width="1.5"/>
+<rect x="744" y="916" width="5" height="28" fill="#142b43"/>
+<text x="766" y="940" font-size="23" fill="#142b43" font-weight="700">Noninclusive policy and restrictions</text>
+<text x="766" y="977" font-size="20" fill="#142b43" font-weight="400">Lower eviction leaves upper copies untouched.</text>
+<text x="766" y="1005" font-size="20" fill="#142b43" font-weight="400">This is not an exclusive / victim-cache organization.</text>
+<text x="766" y="1033" font-size="20" fill="#142b43" font-weight="400">Lower line sizes must be multiples of upper sizes.</text>
+<text x="766" y="1061" font-size="20" fill="#142b43" font-weight="400">No writes, dirty lines, prefetch or hit-under-miss.</text>
+<text x="766" y="1089" font-size="20" fill="#142b43" font-weight="400">Lookup / fill costs are supplied synthetic parameters.</text>
+<path d="M 48 1203 H 1392" stroke="#d4dfe9"/>
+<text x="48" y="1232" font-size="17" fill="#51657a" font-weight="400">SCOPE  Synthetic read-only model • one clock • no board-accuracy claim</text>
+<text x="48" y="1258" font-size="16" fill="#51657a" font-weight="400">CODE  src/hierarchy.cpp: Hierarchy::submit, access, invalidate_above</text>
+</svg>

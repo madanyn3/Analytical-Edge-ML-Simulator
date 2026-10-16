@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1170" viewBox="0 0 1440 1170" role="img" aria-labelledby="title desc">
+<title id="title">Traffic, roofline bounds and evidence</title><desc id="desc">The bound calculator remains separate from the request-completion model. Implementation study diagram; exact only under the stated synthetic model.</desc>
+<defs><marker id="a2465a8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#2465a8"/></marker><marker id="a137866" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#137866"/></marker><marker id="aa75616" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#a75616"/></marker><marker id="a7151a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#7151a1"/></marker><marker id="a142b43" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#142b43"/></marker></defs>
+<style>text{font-family:Arial,Helvetica,sans-serif} .mono{font-family:Consolas,monospace}</style>
+<rect width="1440" height="1170" fill="#fbfcfe"/>
+<rect width="1440" height="144" fill="#142b43"/>
+<text x="48" y="38" font-size="15" fill="#a5d8f5" font-weight="700">EDGE-ML  /  IMPLEMENTATION ATLAS  /  09</text>
+<text x="48" y="82" font-size="34" fill="#ffffff" font-weight="700">Traffic, roofline bounds and evidence</text>
+<text x="48" y="117" font-size="19" fill="#d5e4f1" font-weight="400">The bound calculator remains separate from the request-completion model</text>
+<rect x="48" y="180" width="414" height="210" rx="14" fill="#edf5ff" stroke="#2465a8" stroke-width="1.5"/>
+<rect x="48" y="195" width="5" height="28" fill="#2465a8"/>
+<text x="70" y="219" font-size="23" fill="#2465a8" font-weight="700">Work F</text>
+<text x="70" y="256" font-size="20" fill="#142b43" font-weight="400">Derived from the pinned FC source</text>
+<text x="70" y="284" font-size="20" fill="#142b43" font-weight="400">Unit: MACs, one MAC per multiply-add</text>
+<text x="70" y="312" font-size="20" fill="#142b43" font-weight="400">Semantic work is not issue time.</text>
+<text x="70" y="340" font-size="20" fill="#142b43" font-weight="400">Compute ceiling P uses MAC/s.</text>
+<text x="70" y="368" font-size="20" fill="#142b43" font-weight="400">Unknown P remains unknown.</text>
+<rect x="513" y="180" width="414" height="210" rx="14" fill="#edf9f4" stroke="#137866" stroke-width="1.5"/>
+<rect x="513" y="195" width="5" height="28" fill="#137866"/>
+<text x="535" y="219" font-size="23" fill="#137866" font-weight="700">Traffic Q at a boundary</text>
+<text x="535" y="256" font-size="20" fill="#142b43" font-weight="400">Unit: bytes at a named resource</text>
+<text x="535" y="284" font-size="20" fill="#142b43" font-weight="400">Example: cache full-line fills</text>
+<text x="535" y="312" font-size="20" fill="#142b43" font-weight="400">Example: SRAM tensor requests</text>
+<text x="535" y="340" font-size="20" fill="#142b43" font-weight="400">Storage bytes are not traffic.</text>
+<text x="535" y="368" font-size="20" fill="#142b43" font-weight="400">Use B in bytes/s at that boundary.</text>
+<rect x="978" y="180" width="414" height="210" rx="14" fill="#f4effa" stroke="#7151a1" stroke-width="1.5"/>
+<rect x="978" y="195" width="5" height="28" fill="#7151a1"/>
+<text x="1000" y="219" font-size="23" fill="#7151a1" font-weight="700">Independent dependencies</text>
+<text x="1000" y="256" font-size="20" fill="#142b43" font-weight="400">If derived, supply T_dependency.</text>
+<text x="1000" y="284" font-size="20" fill="#142b43" font-weight="400">Unit: seconds, explicit chain</text>
+<text x="1000" y="312" font-size="20" fill="#142b43" font-weight="400">Do not assume all misses serialize.</text>
+<text x="1000" y="340" font-size="20" fill="#142b43" font-weight="400">Do not charge the same transfer</text>
+<text x="1000" y="368" font-size="20" fill="#142b43" font-weight="400">as both extra latency and bandwidth.</text>
+<rect x="48" y="465" width="1344" height="186" rx="14" fill="#edf9f4" stroke="#137866" stroke-width="1.5"/>
+<rect x="48" y="480" width="5" height="28" fill="#137866"/>
+<text x="70" y="504" font-size="23" fill="#137866" font-weight="700">Necessary bounds, not a predicted execution time</text>
+<text x="70" y="541" font-size="20" fill="#142b43" font-weight="400">Intensity I_r = F / Q_r  [MAC/byte] when Q_r &gt; 0</text>
+<text x="70" y="569" font-size="20" fill="#142b43" font-weight="400">T ≥ max(F/P, max_r(Q_r/B_r), T_dependency)  [seconds]</text>
+<text x="70" y="597" font-size="20" fill="#142b43" font-weight="400">Taking a maximum permits ideal overlap; the real dependency schedule can take longer.</text>
+<text x="70" y="625" font-size="20" fill="#142b43" font-weight="400">The largest term is the active modeled constraint, not proof of the silicon bottleneck.</text>
+<polyline points="255,390 255,465" fill="none" stroke="#2465a8" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#a2465a8)"/>
+<polyline points="720,390 720,465" fill="none" stroke="#137866" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#a137866)"/>
+<polyline points="1185,390 1185,465" fill="none" stroke="#7151a1" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#a7151a1)"/>
+<rect x="48" y="715" width="650" height="268" rx="14" fill="#fff5e9" stroke="#a75616" stroke-width="1.5"/>
+<rect x="48" y="730" width="5" height="28" fill="#a75616"/>
+<text x="70" y="754" font-size="23" fill="#a75616" font-weight="700">Worked FC bound  ·  hypothetical ceilings</text>
+<text x="70" y="791" font-size="20" fill="#142b43" font-weight="400">Tiny FC: F=15 MACs; flash fills Q=32 bytes.</text>
+<text x="70" y="819" font-size="20" fill="#142b43" font-weight="400">Flash intensity = 15/32 = 0.46875 MAC/byte.</text>
+<text x="70" y="847" font-size="20" fill="#142b43" font-weight="400">P=100 million MAC/s → compute bound 0.15 μs.</text>
+<text x="70" y="875" font-size="20" fill="#142b43" font-weight="400">Flash B=20 million bytes/s → bound 1.6 μs.</text>
+<text x="70" y="903" font-size="20" fill="#142b43" font-weight="400">SRAM Q=13 bytes, B=100 million bytes/s → 0.13 μs.</text>
+<text x="70" y="931" font-size="20" fill="#142b43" font-weight="400">Combined known lower bound = 1.6 μs.</text>
+<text x="70" y="959" font-size="20" fill="#142b43" font-weight="400">These input ceilings are not L4R5 measurements.</text>
+<rect x="744" y="715" width="648" height="268" rx="14" fill="#f0f4f8" stroke="#142b43" stroke-width="1.5"/>
+<rect x="744" y="730" width="5" height="28" fill="#142b43"/>
+<text x="766" y="754" font-size="23" fill="#142b43" font-weight="700">How to read the classifications</text>
+<text x="766" y="791" font-size="20" fill="#142b43" font-weight="400">Exact under abstraction: supported counters / tick rules</text>
+<text x="766" y="819" font-size="20" fill="#142b43" font-weight="400">Conditional bound: depends on supplied valid ceilings</text>
+<text x="766" y="847" font-size="20" fill="#142b43" font-weight="400">Unknown: a required physical input has no justified value</text>
+<text x="766" y="875" font-size="20" fill="#142b43" font-weight="400">Unsupported: the selected mechanism is not implemented</text>
+<text x="766" y="903" font-size="20" fill="#142b43" font-weight="400">Measured: requires a recorded physical observation</text>
+<text x="766" y="931" font-size="20" fill="#142b43" font-weight="400">complete_roofline only means supplied ceilings exist.</text>
+<text x="766" y="959" font-size="20" fill="#142b43" font-weight="400">Unit-test agreement does not establish hardware accuracy.</text>
+<path d="M 48 1093 H 1392" stroke="#d4dfe9"/>
+<text x="48" y="1122" font-size="17" fill="#51657a" font-weight="400">SCOPE  Synthetic read-only model • one clock • no board-accuracy claim</text>
+<text x="48" y="1148" font-size="16" fill="#51657a" font-weight="400">CODE  src/memory.cpp: roofline_bound • examples/memory_example.cpp • docs/memory-models.md</text>
+</svg>

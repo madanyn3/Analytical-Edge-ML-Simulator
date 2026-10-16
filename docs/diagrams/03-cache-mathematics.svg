@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1200" viewBox="0 0 1440 1200" role="img" aria-labelledby="title desc">
+<title id="title">Cache geometry, reuse and the sweep formula</title><desc id="desc">The original memory algebra module complements the stateful hierarchy. Implementation study diagram; exact only under the stated synthetic model.</desc>
+<defs><marker id="a2465a8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#2465a8"/></marker><marker id="a137866" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#137866"/></marker><marker id="aa75616" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#a75616"/></marker><marker id="a7151a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#7151a1"/></marker><marker id="a142b43" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#142b43"/></marker></defs>
+<style>text{font-family:Arial,Helvetica,sans-serif} .mono{font-family:Consolas,monospace}</style>
+<rect width="1440" height="1200" fill="#fbfcfe"/>
+<rect width="1440" height="144" fill="#142b43"/>
+<text x="48" y="38" font-size="15" fill="#a5d8f5" font-weight="700">EDGE-ML  /  IMPLEMENTATION ATLAS  /  03</text>
+<text x="48" y="82" font-size="34" fill="#ffffff" font-weight="700">Cache geometry, reuse and the sweep formula</text>
+<text x="48" y="117" font-size="19" fill="#d5e4f1" font-weight="400">The original memory algebra module complements the stateful hierarchy</text>
+<rect x="48" y="180" width="650" height="210" rx="14" fill="#edf5ff" stroke="#2465a8" stroke-width="1.5"/>
+<rect x="48" y="195" width="5" height="28" fill="#2465a8"/>
+<text x="70" y="219" font-size="23" fill="#2465a8" font-weight="700">Byte address → line → set</text>
+<text x="70" y="256" font-size="20" fill="#142b43" font-weight="400">line(A) = floor(A/L); set(A) = line(A) mod S</text>
+<text x="70" y="284" font-size="20" fill="#142b43" font-weight="400">For n &gt; 0: touched = floor((A+n−1)/L) − floor(A/L) + 1</text>
+<text x="70" y="312" font-size="20" fill="#142b43" font-weight="400">For n = 0: touched = 0</text>
+<text x="70" y="340" font-size="20" fill="#142b43" font-weight="400">Example: A=15, n=4, L=16 touches lines 0 and 1.</text>
+<text x="70" y="368" font-size="20" fill="#142b43" font-weight="400">Touched lines alone do not determine cache misses.</text>
+<rect x="744" y="180" width="648" height="210" rx="14" fill="#edf9f4" stroke="#137866" stroke-width="1.5"/>
+<rect x="744" y="195" width="5" height="28" fill="#137866"/>
+<text x="766" y="219" font-size="23" fill="#137866" font-weight="700">Set-aware LRU reuse</text>
+<text x="766" y="256" font-size="20" fill="#142b43" font-weight="400">D_set counts distinct intervening lines in the same set.</text>
+<text x="766" y="284" font-size="20" fill="#142b43" font-weight="400">A repeated line hits exactly when D_set &lt; W.</text>
+<text x="766" y="312" font-size="20" fill="#142b43" font-weight="400">S=2, W=2: 0 → 2 → 1 → 0 ends in a hit.</text>
+<text x="766" y="340" font-size="20" fill="#142b43" font-weight="400">Only line 2 competes with line 0; line 1 maps elsewhere.</text>
+<text x="766" y="368" font-size="20" fill="#142b43" font-weight="400">0 → 2 → 4 → 0 ends in a miss: D_set = 2.</text>
+<rect x="48" y="443" width="650" height="235" rx="14" fill="#edf5ff" stroke="#2465a8" stroke-width="1.5"/>
+<rect x="48" y="458" width="5" height="28" fill="#2465a8"/>
+<text x="70" y="482" font-size="23" fill="#2465a8" font-weight="700">analyze_reuse  ·  finite analysis</text>
+<text x="70" y="519" font-size="19" fill="#142b43" font-weight="400">Keep an unlimited recency stack for each set.</text>
+<text x="70" y="546" font-size="19" fill="#142b43" font-weight="400">Position in that stack is the same-set reuse distance.</text>
+<text x="70" y="573" font-size="19" fill="#142b43" font-weight="400">Cold or explicit initial residents; reads only.</text>
+<text x="70" y="600" font-size="19" fill="#142b43" font-weight="400">Final residents are the first W entries of each stack.</text>
+<text x="70" y="627" font-size="19" fill="#142b43" font-weight="400">Default expansion budget: 10,000 line references.</text>
+<text x="70" y="654" font-size="19" fill="#142b43" font-weight="400">This still processes accesses; it is not symbolic FC analysis.</text>
+<rect x="744" y="443" width="648" height="235" rx="14" fill="#f4effa" stroke="#7151a1" stroke-width="1.5"/>
+<rect x="744" y="458" width="5" height="28" fill="#7151a1"/>
+<text x="766" y="482" font-size="23" fill="#7151a1" font-weight="700">analyze_cold_sweep  ·  closed form</text>
+<text x="766" y="519" font-size="20" fill="#142b43" font-weight="400">N consecutive lines, repeated R times, initially empty.</text>
+<text x="766" y="547" font-size="20" fill="#142b43" font-weight="400">Let k_s be the distinct line count in set s.</text>
+<text x="766" y="575" font-size="20" fill="#142b43" font-weight="400">First sweep misses N times.</text>
+<text x="766" y="603" font-size="20" fill="#142b43" font-weight="400">Later sweeps: all hit if k_s ≤ W; all miss if k_s &gt; W.</text>
+<text x="766" y="631" font-size="20" fill="#142b43" font-weight="400">M = N + (R−1) * sum(k_s for k_s &gt; W)</text>
+<text x="766" y="659" font-size="20" fill="#142b43" font-weight="400">Final set = its last min(k_s,W) lines, newest first.</text>
+<rect x="48" y="739" width="650" height="283" rx="14" fill="#fff5e9" stroke="#a75616" stroke-width="1.5"/>
+<rect x="48" y="754" width="5" height="28" fill="#a75616"/>
+<text x="70" y="778" font-size="23" fill="#a75616" font-weight="700">Worked sweep  ·  S=2, W=2, lines 0…4</text>
+<text x="70" y="815" font-size="20" fill="#142b43" font-weight="400">Sequence per sweep: 0 → 1 → 2 → 3 → 4</text>
+<text x="70" y="843" font-size="20" fill="#142b43" font-weight="400">Set 0 sees {0,2,4}: 3 competitors exceed 2 ways.</text>
+<text x="70" y="871" font-size="20" fill="#142b43" font-weight="400">Set 1 sees {1,3}: both fit in 2 ways.</text>
+<text x="70" y="899" font-size="20" fill="#142b43" font-weight="400">Three sweeps: 15 references, 11 misses, 4 hits.</text>
+<text x="70" y="927" font-size="20" fill="#142b43" font-weight="400">Final MRU→LRU: set 0 [4,2]; set 1 [3,1].</text>
+<text x="70" y="955" font-size="20" fill="#142b43" font-weight="400">Evictions = misses − residents = 11 − 4 = 7.</text>
+<text x="70" y="983" font-size="20" fill="#142b43" font-weight="400">Fill bytes = misses * L; no prefetch or partial fill.</text>
+<rect x="744" y="739" width="648" height="283" rx="14" fill="#f0f4f8" stroke="#142b43" stroke-width="1.5"/>
+<rect x="744" y="754" width="5" height="28" fill="#142b43"/>
+<text x="766" y="778" font-size="23" fill="#142b43" font-weight="700">What is and is not accelerated</text>
+<text x="766" y="815" font-size="20" fill="#142b43" font-weight="400">Sweep counts need no N*R access vector.</text>
+<text x="766" y="843" font-size="20" fill="#142b43" font-weight="400">Runtime: O(S + sum min(k_s,W)) for counts plus state.</text>
+<text x="766" y="871" font-size="20" fill="#142b43" font-weight="400">One billion sweeps of 5 lines → 3,000,000,002 misses.</text>
+<text x="766" y="899" font-size="20" fill="#142b43" font-weight="400">The paired-row FC source schedule is not this simple sweep.</text>
+<text x="766" y="927" font-size="20" fill="#142b43" font-weight="400">Hierarchy stable_blocks uses a different fixed-state proof.</text>
+<text x="766" y="955" font-size="20" fill="#142b43" font-weight="400">Independent replay validates counts and outgoing state.</text>
+<text x="766" y="983" font-size="20" fill="#142b43" font-weight="400">Neither agreement nor exact arithmetic proves ART behavior.</text>
+<path d="M 48 1123 H 1392" stroke="#d4dfe9"/>
+<text x="48" y="1152" font-size="17" fill="#51657a" font-weight="400">SCOPE  Synthetic read-only model • one clock • no board-accuracy claim</text>
+<text x="48" y="1178" font-size="16" fill="#51657a" font-weight="400">CODE  src/memory.cpp: contiguous_lines, analyze_reuse, analyze_cold_sweep • tests/memory_tests.cpp</text>
+</svg>

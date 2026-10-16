@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1350" viewBox="0 0 1440 1350" role="img" aria-labelledby="title desc">
+<title id="title">Direct-stimulus testbench modes</title><desc id="desc">Inject at L1, another configured cache level, or memory — without a CPU frontend. Implementation study diagram; exact only under the stated synthetic model.</desc>
+<defs><marker id="a2465a8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#2465a8"/></marker><marker id="a137866" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#137866"/></marker><marker id="aa75616" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#a75616"/></marker><marker id="a7151a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#7151a1"/></marker><marker id="a142b43" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#142b43"/></marker></defs>
+<style>text{font-family:Arial,Helvetica,sans-serif} .mono{font-family:Consolas,monospace}</style>
+<rect width="1440" height="1350" fill="#fbfcfe"/>
+<rect width="1440" height="144" fill="#142b43"/>
+<text x="48" y="38" font-size="15" fill="#a5d8f5" font-weight="700">EDGE-ML  /  IMPLEMENTATION ATLAS  /  08</text>
+<text x="48" y="82" font-size="34" fill="#ffffff" font-weight="700">Direct-stimulus testbench modes</text>
+<text x="48" y="117" font-size="19" fill="#d5e4f1" font-weight="400">Inject at L1, another configured cache level, or memory — without a CPU frontend</text>
+<rect x="48" y="180" width="650" height="192" rx="14" fill="#edf5ff" stroke="#2465a8" stroke-width="1.5"/>
+<rect x="48" y="195" width="5" height="28" fill="#2465a8"/>
+<text x="70" y="219" font-size="23" fill="#2465a8" font-weight="700">Generated stimulus</text>
+<text x="70" y="256" font-size="20" fill="#142b43" font-weight="400">A_i = base + (i mod period)*stride</text>
+<text x="70" y="284" font-size="20" fill="#142b43" font-weight="400">Open loop: a_i = a0 + i*spacing</text>
+<text x="70" y="312" font-size="20" fill="#142b43" font-weight="400">Closed loop: next arrival = prior completion + spacing</text>
+<text x="70" y="340" font-size="20" fill="#142b43" font-weight="400">Changing a timing knob can change closed-loop arrivals.</text>
+<rect x="744" y="180" width="648" height="192" rx="14" fill="#edf9f4" stroke="#137866" stroke-width="1.5"/>
+<rect x="744" y="195" width="5" height="28" fill="#137866"/>
+<text x="766" y="219" font-size="23" fill="#137866" font-weight="700">Explicit CSV stimulus</text>
+<text x="766" y="256" font-size="20" fill="#142b43" font-weight="400">Header: arrival_cycles,address,bytes</text>
+<text x="766" y="284" font-size="20" fill="#142b43" font-weight="400">Replaces generated arrival, address, width and count.</text>
+<text x="766" y="312" font-size="20" fill="#142b43" font-weight="400">Requires finite + open_loop; equal ticks preserve order.</text>
+<text x="766" y="340" font-size="20" fill="#142b43" font-weight="400">Valid config, selected entry and budgets still apply.</text>
+<rect x="48" y="440" width="414" height="231" rx="14" fill="#edf5ff" stroke="#2465a8" stroke-width="1.5"/>
+<rect x="48" y="455" width="5" height="28" fill="#2465a8"/>
+<text x="70" y="479" font-size="23" fill="#2465a8" font-weight="700">finite</text>
+<text x="70" y="516" font-size="19" fill="#142b43" font-weight="400">Cache or direct-memory entry</text>
+<text x="70" y="543" font-size="19" fill="#142b43" font-weight="400">Generated open / closed loop</text>
+<text x="70" y="570" font-size="19" fill="#142b43" font-weight="400">CSV only in open loop</text>
+<text x="70" y="597" font-size="19" fill="#142b43" font-weight="400">Bounded requests / transactions</text>
+<text x="70" y="624" font-size="19" fill="#142b43" font-weight="400">Emit each evaluated completion.</text>
+<text x="70" y="651" font-size="19" fill="#142b43" font-weight="400">Use for directed irregular cases.</text>
+<rect x="513" y="440" width="414" height="231" rx="14" fill="#edf9f4" stroke="#137866" stroke-width="1.5"/>
+<rect x="513" y="455" width="5" height="28" fill="#137866"/>
+<text x="535" y="479" font-size="23" fill="#137866" font-weight="700">periodic</text>
+<text x="535" y="516" font-size="19" fill="#142b43" font-weight="400">Direct memory entry only</text>
+<text x="535" y="543" font-size="19" fill="#142b43" font-weight="400">Generated open loop only</text>
+<text x="535" y="570" font-size="19" fill="#142b43" font-weight="400">Same address and request width</text>
+<text x="535" y="597" font-size="19" fill="#142b43" font-weight="400">Cold service state</text>
+<text x="535" y="624" font-size="19" fill="#142b43" font-weight="400">Closed-form counters and timing</text>
+<text x="535" y="651" font-size="19" fill="#142b43" font-weight="400">No individual request replay</text>
+<rect x="978" y="440" width="414" height="231" rx="14" fill="#f4effa" stroke="#7151a1" stroke-width="1.5"/>
+<rect x="978" y="455" width="5" height="28" fill="#7151a1"/>
+<text x="1000" y="479" font-size="23" fill="#7151a1" font-weight="700">stable_blocks</text>
+<text x="1000" y="516" font-size="19" fill="#142b43" font-weight="400">Configured cache entry only</text>
+<text x="1000" y="543" font-size="19" fill="#142b43" font-weight="400">Generated closed loop only</text>
+<text x="1000" y="570" font-size="19" fill="#142b43" font-weight="400">One repeating address block</text>
+<text x="1000" y="597" font-size="19" fill="#142b43" font-weight="400">Compare full boundary state.</text>
+<text x="1000" y="624" font-size="19" fill="#142b43" font-weight="400">Skip only a proven fixed point.</text>
+<text x="1000" y="651" font-size="19" fill="#142b43" font-weight="400">Otherwise bounded fallback</text>
+<polyline points="369,372 369,409 255,409 255,440" fill="none" stroke="#2465a8" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#a2465a8)"/>
+<polyline points="369,409 719,409 719,440" fill="none" stroke="#137866" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#a137866)"/>
+<polyline points="719,409 1185,409 1185,440" fill="none" stroke="#7151a1" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#a7151a1)"/>
+<polyline points="1080,372 1080,391 477,391 477,556 462,556" fill="none" stroke="#137866" stroke-width="2.5" stroke-linejoin="round" stroke-dasharray="7 5" marker-end="url(#a137866)"/>
+<rect x="48" y="736" width="650" height="216" rx="14" fill="#edf5ff" stroke="#2465a8" stroke-width="1.5"/>
+<rect x="48" y="751" width="5" height="28" fill="#2465a8"/>
+<text x="70" y="775" font-size="23" fill="#2465a8" font-weight="700">Cache injection</text>
+<text x="70" y="812" font-size="20" fill="#142b43" font-weight="400">entry=L1 → blocking cache path → misses to L2 → memory</text>
+<text x="70" y="840" font-size="20" fill="#142b43" font-weight="400">entry=L2 bypasses L1 lookups, not inclusion effects.</text>
+<text x="70" y="868" font-size="20" fill="#142b43" font-weight="400">Initial residents or repeated blocks exercise hit behavior.</text>
+<text x="70" y="896" font-size="20" fill="#142b43" font-weight="400">Conflict patterns exercise misses and back-invalidations.</text>
+<text x="70" y="924" font-size="20" fill="#142b43" font-weight="400">One fixed entry per run; mixed-source arbitration is absent.</text>
+<rect x="744" y="736" width="648" height="216" rx="14" fill="#edf9f4" stroke="#137866" stroke-width="1.5"/>
+<rect x="744" y="751" width="5" height="28" fill="#137866"/>
+<text x="766" y="775" font-size="23" fill="#137866" font-weight="700">Direct-memory injection</text>
+<text x="766" y="812" font-size="20" fill="#142b43" font-weight="400">entry=memory bypasses the cache admission gate.</text>
+<text x="766" y="840" font-size="20" fill="#142b43" font-weight="400">Wide arrival gaps isolate unloaded latency.</text>
+<text x="766" y="868" font-size="20" fill="#142b43" font-weight="400">Tight arrivals / a burst expose loaded bandwidth.</text>
+<text x="766" y="896" font-size="20" fill="#142b43" font-weight="400">Vary credits to reveal latency-limited throughput.</text>
+<text x="766" y="924" font-size="20" fill="#142b43" font-weight="400">Inspect response latency separately from service duration.</text>
+<rect x="48" y="1013" width="1344" height="187" rx="14" fill="#fff5e9" stroke="#a75616" stroke-width="1.5"/>
+<rect x="48" y="1028" width="5" height="28" fill="#a75616"/>
+<text x="70" y="1052" font-size="23" fill="#a75616" font-weight="700">Observe and validate</text>
+<text x="70" y="1089" font-size="20" fill="#142b43" font-weight="400">Report useful bytes, wire bytes, completion ticks, latency and drain-inclusive bandwidth.</text>
+<text x="70" y="1117" font-size="20" fill="#142b43" font-weight="400">Track per-level hit/miss/eviction/invalidation/fill counts and complete outgoing state.</text>
+<text x="70" y="1145" font-size="20" fill="#142b43" font-weight="400">Keep evaluated and analytically skipped requests separate; never invent skipped request rows.</text>
+<text x="70" y="1173" font-size="20" fill="#142b43" font-weight="400">Compare with the independent timestamp-cache and discrete-tick memory references.</text>
+<path d="M 48 1273 H 1392" stroke="#d4dfe9"/>
+<text x="48" y="1302" font-size="17" fill="#51657a" font-weight="400">SCOPE  Synthetic read-only model • one clock • no board-accuracy claim</text>
+<text x="48" y="1328" font-size="16" fill="#51657a" font-weight="400">CODE  examples/edge_bench.cpp • src/testbench.cpp • configs/*.ini • configs/reads.csv • tests/hierarchy_tests.cpp</text>
+</svg>
