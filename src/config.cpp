@@ -1,9 +1,7 @@
 #include "edge/config.hpp"
 #include "edge/checked.hpp"
+#include "ini.hpp"
 #include <algorithm>
-#include <charconv>
-#include <fstream>
-#include <map>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -11,88 +9,19 @@
 namespace edge {
 namespace {
 using U=std::uint64_t;
-std::string trim(std::string s) {
-    const auto first=s.find_first_not_of(" \t\r");
-    if (first==std::string::npos) return {};
-    return s.substr(first,s.find_last_not_of(" \t\r")-first+1);
-}
-bool identifier(const std::string& s) {
-    return !s.empty() && std::all_of(s.begin(),s.end(),[](char c) {
-        return (c>='a'&&c<='z') || (c>='A'&&c<='Z') || (c>='0'&&c<='9') || c=='_';
-    });
-}
-struct Value { std::string text; std::size_t line; };
-// Values are consumed exactly once. Any remaining entry is a typo/unsupported knob,
-// never a silently ignored setting. This also makes schema evolution explicit.
-class Fields {
-public:
-    std::map<std::string,Value> values;
-    std::string source;
-    std::string take(const std::string& key) {
-        auto it=values.find(key);
-        if (it==values.end()) throw std::invalid_argument(source+": missing required key "+key);
-        auto v=it->second.text;
-        values.erase(it);
-        return v;
-    }
-    U number(const std::string& key) {
-        const auto it=values.find(key);
-        const auto line=it==values.end()?0:it->second.line;
-        auto v=take(key);
-        return integer(v,source+":"+std::to_string(line)+": "+key);
-    }
-    static U integer(const std::string& v,const std::string& where) {
-        U result=0;
-        const bool hex=v.starts_with("0x");
-        const auto* begin=v.data()+(hex?2:0);
-        const auto* end=v.data()+v.size();
-        const auto parsed=std::from_chars(begin,end,result,hex?16:10);
-        if (begin==end || parsed.ec!=std::errc{} || parsed.ptr!=end)
-            throw std::invalid_argument(where+": expected unsigned decimal or 0x integer");
-        return result;
-    }
-    void literal(const std::string& key,const std::string& expected) {
-        const auto value=take(key);
-        if (value!=expected) throw std::invalid_argument(source+": "+key+": supported value is "+expected);
-    }
-};
+using ini::identifier;
+using ini::trim;
+using Fields=ini::Fields;
 }
 ModelConfig parse_config(std::string_view text,const std::string& source) {
-    if (text.size()>1024*1024) throw std::length_error(source+": config exceeds 1 MiB");
-    Fields f;
-    f.source=source;
-    std::istringstream input{std::string(text)};
-    std::string raw,section;
-    std::set<std::string> sections;
+    auto doc=ini::lex(text,source);
+    auto& f=doc.fields;
     std::vector<std::string> caches;
-    std::size_t line=0;
-    while (std::getline(input,raw)) {
-        ++line;
-        const std::string where=source+":"+std::to_string(line)+": ";
-        if (raw.size()>4096) throw std::invalid_argument(where+"line exceeds 4096 bytes");
-        if (std::any_of(raw.begin(),raw.end(),[](unsigned char c){return c<32 && c!='\t' && c!='\r';}))
-            throw std::invalid_argument(where+"control character");
-        const auto comment=raw.find('#');
-        if (comment!=std::string::npos) raw.resize(comment);
-        raw=trim(raw);
-        if (raw.empty()) continue;
-        if (raw.front()=='[') {
-            if (raw.back()!=']') throw std::invalid_argument(where+"malformed section");
-            section=raw.substr(1,raw.size()-2);
-            if (!sections.insert(section).second) throw std::invalid_argument(where+"duplicate section "+section);
-            if (section.starts_with("cache.") && identifier(section.substr(6))) caches.push_back(section.substr(6));
-            else if (section!="model" && section!="memory" && section!="stimulus")
-                throw std::invalid_argument(where+"unknown section "+section);
-            continue;
-        }
-        const auto eq=raw.find('=');
-        if (section.empty() || eq==std::string::npos) throw std::invalid_argument(where+"expected section and key=value");
-        const auto key=trim(raw.substr(0,eq));
-        const auto value=trim(raw.substr(eq+1));
-        if (!identifier(key) || value.empty() || value.find('=')!=std::string::npos)
-            throw std::invalid_argument(where+"invalid key/value");
-        if (!f.values.emplace(section+"."+key,Value{value,line}).second)
-            throw std::invalid_argument(where+"duplicate key "+key);
+    for (const auto& sec:doc.sections) {
+        const auto& section=sec.name;
+        if (section.starts_with("cache.") && identifier(section.substr(6))) caches.push_back(section.substr(6));
+        else if (section!="model" && section!="memory" && section!="stimulus")
+            throw std::invalid_argument(source+":"+std::to_string(sec.line)+": unknown section "+section);
     }
     ModelConfig c;
     f.literal("model.version","1");
@@ -135,25 +64,13 @@ ModelConfig parse_config(std::string_view text,const std::string& source) {
     s.stride=f.number("stimulus.stride"); s.address_period=f.number("stimulus.address_period");
     s.arrival_cycles=f.number("stimulus.arrival_cycles"); s.spacing_cycles=f.number("stimulus.spacing_cycles");
     s.max_requests=f.number("stimulus.max_requests"); s.max_transactions=f.number("stimulus.max_transactions");
-    if (!f.values.empty()) {
-        const auto& [key,value]=*f.values.begin();
-        throw std::invalid_argument(source+":"+std::to_string(value.line)+": unknown key "+key);
-    }
+    f.reject_leftovers();
     try { validate_config(c); }
     catch (const std::exception& e) { throw std::invalid_argument(source+": configuration constraint: "+e.what()); }
     return c;
 }
 ModelConfig load_config(const std::string& path) {
-    std::ifstream in(path,std::ios::binary);
-    if (!in) throw std::invalid_argument("cannot open config: "+path);
-    std::string text;
-    char ch;
-    while (in.get(ch)) {
-        if (text.size()==1024*1024) throw std::length_error("config exceeds 1 MiB: "+path);
-        text+=ch;
-    }
-    if (!in.eof()) throw std::runtime_error("cannot read config: "+path);
-    return parse_config(text,path);
+    return parse_config(ini::read_file(path),path);
 }
 void validate_config(const ModelConfig& c) {
     if (!c.clock_hz || (c.inclusion!="inclusive" && c.inclusion!="noninclusive") || c.caches.size()>8)
