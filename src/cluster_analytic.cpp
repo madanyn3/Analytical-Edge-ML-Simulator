@@ -81,4 +81,82 @@ Rational k3a_cycle_time(U P,U Z,U D,U I,U K) {
     const U g=std::gcd(best.num,best.den);
     return {best.num/g,best.den/g};
 }
+std::vector<U> xy_links(const TopologyConfig& t,U from,U to) {
+    if (from>=t.k*t.k || to>=t.k*t.k) throw std::invalid_argument("tile outside the grid");
+    std::vector<U> out;
+    U x=from%t.k,y=from/t.k;
+    // One dimension: step toward `target`. Mesh: the only direction. Torus: the shorter
+    // ring direction, + on an exact tie (distance k/2).
+    auto walk=[&](U& coord,U target,U minus_port,U plus_port) {
+        if (coord==target) return;
+        const U forward=(target+t.k-coord)%t.k;     // Steps going +.
+        const bool plus=t.kind=="torus"?forward<=t.k-forward:target>coord;
+        const U steps=plus?(t.kind=="torus"?forward:target-coord):(t.kind=="torus"?t.k-forward:coord-target);
+        for (U i=0;i<steps;++i) {
+            out.push_back((y*t.k+x)*5+(plus?plus_port:minus_port));
+            coord=plus?(coord+1)%t.k:(coord+t.k-1)%t.k;
+        }
+    };
+    walk(x,to%t.k,1,2);
+    walk(y,to/t.k,3,4);
+    return out;
+}
+Demand resource_demand(const ClusterConfig& c,const std::vector<ClassifiedRead>& reads) {
+    const auto& t=c.topology;
+    const U B=t.k*t.k;
+    Demand d;
+    d.link_packets.assign(B*5,0); d.link_flits.assign(B*5,0);
+    d.bank_references.assign(B,0); d.bank_misses.assign(B,0); d.bank_min_busy.assign(B,0);
+    d.core_l1_hits.assign(c.cores.size(),0); d.core_l1_misses.assign(c.cores.size(),0);
+    d.core_min_finish.resize(c.cores.size());
+    for (std::size_t p=0;p<c.cores.size();++p) d.core_min_finish[p]=c.cores[p].start_cycles;
+    auto packet=[&](U from,U to,U payload) {
+        const U flits=add(1,checked::ceil_div(payload,t.flit_bytes));
+        for (U l:xy_links(t,from,to)) { d.link_packets[l]=add(d.link_packets[l],1); d.link_flits[l]=add(d.link_flits[l],flits); }
+    };
+    const U D=memory_line_cycles(c);
+    for (const auto& r:reads) {
+        if (r.core>=c.cores.size() || r.bank>=B) throw std::invalid_argument("classified read out of range");
+        const U tile=c.cores[r.core].tile;
+        const auto z=zero_load_read(c,tile,r.bank);
+        U latency=z.l1_hit;
+        if (r.kind==ReadClass::l1_hit) d.core_l1_hits[r.core]=add(d.core_l1_hits[r.core],1);
+        else {
+            d.core_l1_misses[r.core]=add(d.core_l1_misses[r.core],1);
+            d.bank_references[r.bank]=add(d.bank_references[r.bank],1);
+            packet(tile,r.bank,0);
+            packet(r.bank,tile,c.l1.geometry.line_bytes);
+            U busy=c.l2.lookup_cycles;
+            latency=z.l2_hit;
+            if (r.kind==ReadClass::l2_miss) {
+                d.bank_misses[r.bank]=add(d.bank_misses[r.bank],1);
+                d.memory_requests=add(d.memory_requests,1);
+                packet(r.bank,t.mc_tile,0);
+                packet(t.mc_tile,r.bank,c.l2.geometry.line_bytes);
+                const U to_mc=hops(t,r.bank,t.mc_tile);
+                busy=add(add(add(add(busy,packet_time(t,to_mc,0)),D),packet_time(t,to_mc,c.l2.geometry.line_bytes)),c.l2.fill_cycles);
+                latency=z.l2_miss;
+            }
+            d.bank_min_busy[r.bank]=add(d.bank_min_busy[r.bank],busy);
+        }
+        d.core_min_finish[r.core]=add(d.core_min_finish[r.core],add(c.cores[r.core].compute_cycles,latency));
+    }
+    return d;
+}
+MakespanBound makespan_lower_bound(const ClusterConfig& c,const Demand& d) {
+    MakespanBound b{};
+    for (U v:d.core_min_finish) b.core=std::max(b.core,v);
+    for (U f:d.link_flits) b.link=std::max(b.link,mul(f,c.topology.link_cycles));
+    for (U v:d.bank_min_busy) b.bank=std::max(b.bank,v);
+    if (d.memory_requests) {
+        const U beats=checked::ceil_div(c.l2.geometry.line_bytes,c.memory.beat_bytes);
+        const U I=std::max(c.memory.issue_cycles,mul(beats,c.memory.beat_cycles));
+        const U D=memory_line_cycles(c);
+        const U N=d.memory_requests;
+        b.memory=std::max(add(mul(N-1,I),D),mul(checked::ceil_div(N,c.memory.outstanding),D));
+    }
+    b.value=std::max({b.core,b.link,b.bank,b.memory});
+    return b;
+}
+U mesh_all_to_all_max_channel_load(U k) { return mul(k,k*k/4); }
 }

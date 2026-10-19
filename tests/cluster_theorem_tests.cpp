@@ -6,6 +6,7 @@
 #include "edge/noc.hpp"
 #include "edge/service.hpp"
 #include <map>
+#include <algorithm>
 #include <iostream>
 #include <random>
 #include <stdexcept>
@@ -189,6 +190,152 @@ void k3a() {
              <<"I "<<issue_bound<<", D/K "<<memory_bound<<", (Z+D)/P "<<source_bound
              <<"; longest transient "<<longest<<" admissions\n";
 }
+
+// N2 geometry: analytic XY links equal the routed path; the all-to-all channel-load
+// closed form equals enumeration on meshes k = 2..8.
+void channel_load() {
+    for (const char* kind:{"mesh","torus"}) for (U k=2;k<=8;++k) {
+        if (std::string(kind)=="torus" && k<3) continue;
+        const edge::TopologyConfig t{kind,k,0,1,1,16,"fifo","test"};
+        const edge::noc::Topology topo(t);
+        std::vector<U> load(k*k*5,0);
+        for (U a=0;a<k*k;++a) for (U b=0;b<k*k;++b) {
+            std::vector<U> routed;
+            for (const auto& l:topo.route(a,b)) routed.push_back(topo.link_index(l));
+            const auto links=edge::analytic::xy_links(t,a,b);
+            check(links==routed,"analytic XY links = routed links");
+            for (U l:links) ++load[l];
+        }
+        if (std::string(kind)=="mesh")
+            check(*std::max_element(load.begin(),load.end())==edge::analytic::mesh_all_to_all_max_channel_load(k),
+                  "mesh all-to-all max channel load k*floor(k^2/4), k="+std::to_string(k));
+    }
+}
+
+// N2 against the evaluator. Every core p streams m L2 lines (r L1 lines each) of its
+// own contiguous block, base p*m L2 lines, with stride = half an L1 line, for `passes`
+// passes. Read classes then follow from the construction, for ANY interleaving:
+//  - L1 (private): the j-th pair reads one L1 line twice, so odd reads hit. Each L1 set
+//    sees m*r/S1 > W1 distinct lines in cyclic order, so LRU evicts every line before
+//    its reuse: every even read misses L1.
+//  - L2 (shared): blocks are disjoint and the n*m lines are contiguous and at most
+//    B*S2*W2, so every (bank, set) holds at most W2 of them: nothing is ever evicted
+//    and only a line's first touch (pass 0) misses.
+// Exact: link packets/flits, bank references/misses, memory requests, L1 counts.
+// Bounds: per-core completion and makespan lower bounds from resource demand.
+void demand_vs_evaluator() {
+    std::mt19937_64 rng(20261021);
+    auto pick=[&](U lo,U hi){ return std::uniform_int_distribution<U>(lo,hi)(rng); };
+    struct Grid { const char* kind; U k; };
+    U cases=0,tight=0;
+    long double worst=1,sum_ratio=0;
+    U binding[4]{};
+    long double binding_ratio[4]{};
+    for (int trial=0;trial<150;++trial) {
+        const Grid grids[]={{"mesh",2},{"mesh",3},{"mesh",4},{"torus",3},{"torus",4}};
+        const auto g=grids[trial%5];
+        auto c=base();
+        const U B=g.k*g.k;
+        const U flit[]={4,8,16,32};
+        c.topology={g.kind,g.k,pick(0,B-1),pick(0,2),pick(1,3),flit[pick(0,3)],
+                    pick(0,1)?"fifo":"round_robin","test"};
+        const U l1=pick(0,1)?16:32, r=pick(0,1)?2:4;
+        const char* bank_policy[]={"fifo","round_robin","fixed_priority"};
+        c.l1={{l1,4,2},pick(1,3),pick(0,2),"","test"};
+        c.l2={{l1*r,4,2},pick(1,6),pick(0,3),bank_policy[pick(0,2)],"test"};
+        c.memory={pick(10,60),U{8}<<pick(0,2),pick(1,4),pick(1,12),pick(1,4),"test"};
+        // Regimes, so that every bound term gets exercised: 0 random, 1 link-heavy
+        // (4-byte flits, t_l = 3, no compute), 2 bank-heavy (slow L2 lookup, no compute).
+        const int regime=trial%3;
+        if (regime==1) { c.topology.flit_bytes=4; c.topology.link_cycles=3; }
+        if (regime==2) c.l2.lookup_cycles=pick(15,30);
+        const U compute_max=regime?0:30;
+        // Cores on a random subset of tiles (at least one).
+        std::vector<U> tiles(B);
+        for (U i=0;i<B;++i) tiles[i]=i;
+        std::shuffle(tiles.begin(),tiles.end(),rng);
+        const U n=pick(1,B);
+        // m L2 lines per core: m*r > 8 = S1*W1 and m*r a multiple of S1 = 4 (r >= 2,
+        // m even); n*m <= B*S2*W2 = 8B.
+        U m=2*pick(1,4);
+        while (m*r<=8) m+=2;
+        if (n*m>8*B) m=std::max<U>(2,(8*B/n)&~U{1});
+        if (m*r<=8 || n*m>8*B) continue;    // No admissible m for this draw.
+        const U passes=pick(1,3),per_core=passes*2*r*m;
+        c.stimulus={"finite",100000,1000000,10000000};
+        c.cores.clear();
+        std::vector<edge::analytic::ClassifiedRead> reads;
+        // Resonance regime: core p reads L2 lines (p*m + i)*B + b0, i < m (line stride
+        // sigma = B, so B/gcd(B,B) = 1 bank). A one-line L1 misses every read (m >= 2);
+        // the shared bank has 64 sets x 2 ways and the n*m lines use sets p*m + i
+        // (mod 64), so with n*m <= 128 nothing is evicted.
+        const U b0=pick(0,B-1);
+        if (regime==2) {
+            c.l1.geometry={l1,1,1};
+            c.l2.geometry.sets=64;
+            m=std::min<U>(m,128/n);
+        }
+        for (U p=0;p<n;++p) {
+            if (regime==2) {
+                const U line=c.l2.geometry.line_bytes;
+                c.cores.push_back({"c"+std::to_string(p),tiles[p],pick(0,20),0,passes*m,
+                                   (p*m*B+b0)*line,4,B*line,m});
+                for (U j=0;j<passes*m;++j)
+                    reads.push_back({static_cast<std::size_t>(p),b0,
+                                     j<m?edge::analytic::ReadClass::l2_miss:edge::analytic::ReadClass::l2_hit});
+                continue;
+            }
+            c.cores.push_back({"c"+std::to_string(p),tiles[p],pick(0,20),pick(0,compute_max),per_core,
+                               p*m*l1*r,4,l1/2,2*r*m});
+            for (U j=0;j<per_core;++j) {
+                const U jj=j%(2*r*m);
+                const U bank=(p*m+jj/(2*r))%B;
+                const auto kind=j%2?edge::analytic::ReadClass::l1_hit:
+                                (j<2*r*m && jj%(2*r)==0)?edge::analytic::ReadClass::l2_miss:
+                                edge::analytic::ReadClass::l2_hit;
+                reads.push_back({static_cast<std::size_t>(p),bank,kind});
+            }
+        }
+        const auto d=edge::analytic::resource_demand(c,reads);
+        const auto res=edge::run_cluster(c);
+        const std::string at=std::string(" [trial ")+std::to_string(trial)+" "+g.kind+" k="+std::to_string(g.k)+"]";
+        // Exact counts.
+        for (U l=0;l<B*5;++l) {
+            check(res.links[l].packets==d.link_packets[l],"link packets"+at);
+            check(res.links[l].flits==d.link_flits[l],"link flits"+at);
+            check(res.links[l].busy_cycles==d.link_flits[l]*c.topology.link_cycles,"link busy = flits*t_l"+at);
+        }
+        for (U b=0;b<B;++b) {
+            check(res.banks[b].l2.references==d.bank_references[b] && res.banks[b].l2.misses==d.bank_misses[b],"bank counts"+at);
+            check(res.banks[b].busy_cycles>=d.bank_min_busy[b],"bank busy >= demand"+at);
+        }
+        check(res.memory_requests==d.memory_requests,"memory requests"+at);
+        U T=0;
+        for (U p=0;p<n;++p) {
+            const auto& s=res.cores[p];
+            check(s.l1.hits==d.core_l1_hits[p] && s.l1.misses==d.core_l1_misses[p],"L1 counts"+at);
+            check(s.last_done>=d.core_min_finish[p],"core finish >= zero-load bound"+at);
+            T=std::max(T,s.last_done);
+        }
+        const auto bound=edge::analytic::makespan_lower_bound(c,d);
+        check(T>=bound.value,"makespan >= resource bound"+at);
+        const long double ratio=static_cast<long double>(T)/bound.value;
+        worst=std::max(worst,ratio); sum_ratio+=ratio;
+        if (T==bound.value) ++tight;
+        // Which term binds (first maximal in the order core, link, bank, memory).
+        const U terms[]={bound.core,bound.link,bound.bank,bound.memory};
+        const auto which=std::max_element(terms,terms+4)-terms;
+        ++binding[which]; binding_ratio[which]+=ratio;
+        ++cases;
+    }
+    check(cases>=100,"enough admissible N2 cases");
+    std::cout<<"N2: "<<cases<<" clusters, counts exact; makespan/bound mean "<<sum_ratio/cases<<", max "<<worst
+             <<", tight "<<tight<<"\n";
+    const char* names[]={"core","link","bank","memory"};
+    for (int i=0;i<4;++i)
+        std::cout<<"  binding "<<names[i]<<": "<<binding[i]<<" clusters, mean makespan/bound "
+                 <<(binding[i]?binding_ratio[i]/binding[i]:0)<<"\n";
+}
 }
 int main() {
     try {
@@ -196,6 +343,8 @@ int main() {
         goldens();
         zero_load_vs_evaluator();
         k3a();
+        channel_load();
+        demand_vs_evaluator();
         std::cout<<"cluster theorem tests passed\n";
     } catch (const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
 }

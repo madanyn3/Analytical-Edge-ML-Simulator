@@ -59,4 +59,49 @@ struct Rational {
 // Cycle time lambda = max(I, D/K, (Z + D)/P): the maximum cycle mean of the max-plus
 // recurrence above. Throughput X = 1/lambda = min(1/I, K/D, P/(Z + D)) is attained.
 Rational k3a_cycle_time(U sources, U compute, U latency, U spacing, U credits);
+
+// --- N2: resource demand and bounds --------------------------------------------------
+// Directed links on the XY route, as link indices tile*5 + port (ports: local 0, -x 1,
+// +x 2, -y 3, +y 4). Stepped per dimension here, independently of noc::Topology::route.
+std::vector<U> xy_links(const TopologyConfig&, U from_tile, U to_tile);
+enum class ReadClass { l1_hit, l2_hit, l2_miss };
+struct ClassifiedRead {
+    std::size_t core;   // Index into ClusterConfig::cores.
+    U bank;             // Home bank of the read's line (unused for L1 hits).
+    ReadClass kind;
+};
+// Work each read places on each resource, independent of timing:
+//   L1 hit:  nothing outside the core.
+//   L2 hit:  REQ (1 flit) core->bank, RESP (F_L1 flits) bank->core; bank busy lookup_L2.
+//   L2 miss: the L2-hit packets plus MREQ (1 flit) bank->MC and MRESP (F_L2) MC->bank;
+//            bank busy >= lookup_L2 + T0(MREQ) + D + T0(MRESP) + fill_L2 (blocking bank,
+//            BK1); one memory request.
+// Packet and flit counts are exact; bank busy and core windows are lower bounds,
+// reached only when nothing waits.
+struct Demand {
+    std::vector<U> link_packets, link_flits;                 // By link index.
+    std::vector<U> bank_references, bank_misses, bank_min_busy;
+    U memory_requests{};
+    std::vector<U> core_l1_hits, core_l1_misses;
+    std::vector<U> core_min_finish;  // start + sum over reads of (compute + zero-load latency).
+};
+Demand resource_demand(const ClusterConfig&, const std::vector<ClassifiedRead>&);
+// Makespan T (last completion) is at least each of:
+//   core:   core_min_finish_p                       (a blocking core never beats zero load)
+//   link:   flits_l * t_l                           (one flit per t_l per link)
+//   bank:   bank_min_busy_b                         (one request at a time)
+//   memory: (N-1) I + D  and  ceil(N/K) D           (issue spacing; K credits)
+// This is the finite-run form of X <= min(P/(Z + R0), 1/Dmax).
+struct MakespanBound {
+    U value;            // Max of the terms below.
+    U core, link, bank, memory;
+};
+MakespanBound makespan_lower_bound(const ClusterConfig&, const Demand&);
+// Uniform all-to-all on a k x k mesh (every tile sends one packet to every tile) under
+// XY routing. The +x link from column x in row y carries every packet whose source is
+// in row y at column <= x and whose destination column is > x (any of k rows), since X
+// moves happen in the source row: k (x+1)(k-1-x) packets. Y moves happen in the
+// destination column, giving k (y+1)(k-1-y) on the +y link from row y. -x/-y mirror
+// these. The maximum is k floor(k^2/4) (k^3/4 even, k(k^2-1)/4 odd), at the bisection.
+U mesh_all_to_all_max_channel_load(U k);
 }

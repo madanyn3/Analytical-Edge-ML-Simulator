@@ -239,6 +239,15 @@ prove the per-tile formula `(1/k)·Σ_x' |x − x'|` per dimension.
 is a resonance condition analogous to Phase A's set conflicts: for example, with
 `σ = B`, every access goes to the same bank. State it and prove it.
 
+**Checked so far (N1).** `analytic::zero_load_read` and `analytic::l2_hit_sum_over_banks`
+(`src/cluster_analytic.cpp`) are pure arithmetic on the configuration. In
+`tests/cluster_theorem_tests.cpp` they match the evaluator on every read of 324 random
+single-core runs (25,476 reads; 2×2–4×4 meshes, 3×3/4×4 tori, every core tile). A lone
+blocking core never meets contention. The per-tile hop sum `k(S(x) + S(y))` is checked
+for k = 2–8, with `S(a) = a(a+1)/2 + (k−1−a)(k−a)/2` on a mesh and `⌊k²/4⌋` on a torus.
+The bank-sum formula has a `(B−1)(F_L1−1)t_l` term rather than `B(...)`, because T₀ is
+not affine in H: a local bank costs no network time at all.
+
 ### N2. Resource-demand bounds for the closed system (must-have)
 
 Each request class (L1 hit, L2 hit at bank `h`, L2 miss) places a known demand on each
@@ -257,6 +266,36 @@ This is a direct generalization of the asymptotic bounds.
 traffic is a known closed form; for even k the bisection channels are the bottleneck.
 Derive it for this request/response packet mix, then check the bound and where it is
 tight against the evaluator.
+
+**Checked so far (N2).** The check uses the finite-run form of the bound. Makespan T is at
+least the largest of:
+- each core's `start + Σ(Z + R₀)`;
+- each link's `flits · t_l`;
+- each bank's minimum busy time (lookup per hit, the whole zero-load miss round trip
+  per miss under BK1);
+- memory's `(N−1)I + D` and `⌈N/K⌉D`.
+
+The test streams are built so that each read's class (L1 hit, L2 hit or L2 miss) follows
+from the construction for any interleaving. Under that construction the predicted
+per-link packet and flit counts, bank references and misses, memory requests and L1
+counts equal the evaluator's exactly in 150 random clusters. Every bound holds.
+
+The all-to-all mesh channel load `k⌊k²/4⌋` (bisection links) is checked by enumeration
+for k = 2–8.
+
+Observed tightness (makespan / bound, by binding term) in the current sweep:
+
+| Binding term | Clusters | Mean makespan / bound |
+|---|---|---|
+| Core zero-load | 86 | 1.24 |
+| Link | 12 | 1.60 |
+| Bank (stride σ = B resonance onto one bank) | 46 | 1.02 |
+| Memory | 6 | 1.28 |
+
+These are observations from a random sweep, not theorems. A plausible reading, not yet
+analysed: the resonance bank is one blocking resource that serializes every request, so
+its bound is nearly tight. The busiest link is idle whenever its traffic is held up at
+banks, other links or compute, so its bound is loose.
 
 ### N3. Memory theorem K3a (must-have; unchanged from revision 1)
 
