@@ -277,15 +277,20 @@ with eventual slope `λ = max(I, D/K, (Z+D)/P)`. So `X = min(1/I, K/D, P/(Z+D))`
 attained exactly. The proof sketch is in revision 1's argument: cyclic order is
 preserved, completions are FIFO, and the max-plus cycle mean is `max_j w_j/j`.
 
-**Checked so far.** A scratch check compared the recurrence with an independent tick
-simulation in 3,000 random configurations. Result: zero mismatches; the slope was exact
-and the sequence eventually periodic. One worked example: `P=4, Z=10, D=12, I=2, K=2`
-gives `λ = 6`, mean latency 14, and admissions `10, 12, 22, 24, 34, 36, …` (period 2,
-gaps 2 and 10).
+**Checked so far.** `tests/cluster_theorem_tests.cpp` drives the production
+`MemoryService` with P closed-loop sources and compares every admission with the
+recurrence (`analytic::k3a_admissions`). It covers 3,000 random configurations
+(P ≤ 8, Z ≤ 80) of 600 admissions each. Every admission matches, and the sources stay
+in cyclic order. On the last 300 admissions some period q satisfies
+`s_(n+q) − s_n = qλ` with λ from `analytic::k3a_cycle_time`. The mean response time
+over one period is exactly `Pλ − Z`. Each of the three terms of λ binds in some
+cases. One worked example: `P=4, Z=10, D=12, I=2, K=2` gives `λ = 6`, mean latency 14,
+and admissions `10, 12, 22, 24, 34, 36, …` (period 2, gaps 2 and 10). These are
+checks of a stated theorem, not a proof; the proof goes in the theorem write-up.
 
-**Open item: transient length.** Transients of up to 20 admissions were observed with
-P ≤ 6. Bounding the transient is a research item. Periodic-state acceleration doesn't
-depend on it.
+**Open item: transient length.** The longest transient observed is 30 admissions
+(P ≤ 8). Bounding the transient is a research item. Periodic-state acceleration
+doesn't depend on it.
 
 **How it is tested.** Directly, with several closed-loop sources on `MemoryService`, as a
 component-level directed test. It also applies to a whole-tile system whenever every

@@ -4,6 +4,8 @@
 #include "edge/cluster.hpp"
 #include "edge/cluster_analytic.hpp"
 #include "edge/noc.hpp"
+#include "edge/service.hpp"
+#include <map>
 #include <iostream>
 #include <random>
 #include <stdexcept>
@@ -107,12 +109,93 @@ void zero_load_vs_evaluator() {
         }
     std::cout<<"N1 zero-load: "<<runs<<" single-core runs, "<<reads<<" reads match closed forms\n";
 }
+
+// K3a reference: P closed-loop sources driving the production MemoryService. Requests
+// are submitted in arrival order (ties by source index, which is also round-robin with
+// pointer 0); each completion schedules that source's next arrival done + Z.
+// No recurrence is used here; returns admissions and the source of each request.
+struct Driven { std::vector<U> start, source, arrival; };
+Driven drive(const edge::ServiceConfig& m,U line,U P,U Z,U count) {
+    edge::MemoryService service(m);
+    std::multimap<std::pair<U,U>,int> ready;   // (arrival, source)
+    for (U p=0;p<P;++p) ready.emplace(std::pair{Z,p},0);
+    Driven d;
+    while (d.start.size()<count) {
+        const auto [arrival,source]=ready.begin()->first;
+        ready.erase(ready.begin());
+        const auto c=service.submit({arrival,0,line});
+        d.start.push_back(c.start); d.source.push_back(source); d.arrival.push_back(arrival);
+        ready.emplace(std::pair{c.done+Z,source},0);
+    }
+    return d;
+}
+
+void k3a() {
+    namespace a=edge::analytic;
+    // Design worked example: P=4, Z=10, D=12, I=2, K=2 -> lambda 6, R = 4*6 - 10 = 14.
+    {
+        const auto s=a::k3a_admissions(4,10,12,2,2,8);
+        check((s==std::vector<U>{10,12,22,24,34,36,46,48}),"worked example admissions");
+        check((a::k3a_cycle_time(4,10,12,2,2)==a::Rational{6,1}),"worked example lambda = 6");
+        const auto d=drive({12,16,1,2,2,"test"},16,4,10,8);
+        check(d.start==s,"worked example on MemoryService");
+    }
+    std::mt19937_64 rng(20261020);
+    auto pick=[&](U lo,U hi){ return std::uniform_int_distribution<U>(lo,hi)(rng); };
+    const U N=600,tail=300;
+    U cases=0,longest=0,memory_bound=0,issue_bound=0,source_bound=0;
+    for (int trial=0;trial<3000;++trial) {
+        const U beat_bytes[]={8,16,32};
+        const edge::ServiceConfig m{pick(1,60),beat_bytes[pick(0,2)],pick(1,8),pick(1,20),pick(1,6),"test"};
+        const U line=U{16}<<pick(0,2);
+        const U P=pick(1,8),Z=pick(0,80);
+        // D and I for one aligned line, from the service contract (not from the service).
+        const U beats=(line+m.beat_bytes-1)/m.beat_bytes;
+        const U D=m.first_beat_cycles+(beats-1)*m.beat_cycles;
+        const U I=std::max(m.issue_cycles,beats*m.beat_cycles);
+        const std::string at=" [trial "+std::to_string(trial)+" P="+std::to_string(P)+" Z="+std::to_string(Z)+
+                             " D="+std::to_string(D)+" I="+std::to_string(I)+" K="+std::to_string(m.outstanding)+"]";
+        const auto s=a::k3a_admissions(P,Z,D,I,m.outstanding,N);
+        const auto d=drive(m,line,P,Z,N);
+        // Every prefix: admission n of the service equals the recurrence.
+        for (U n=0;n<N;++n) {
+            check(d.start[n]==s[n],"admission "+std::to_string(n)+" differs from recurrence"+at);
+            check(d.source[n]==n%P,"cyclic source order"+at);
+        }
+        // Eventual slope: some period q has s_(n+q) - s_n = q*lambda on the whole tail.
+        const auto lambda=a::k3a_cycle_time(P,Z,D,I,m.outstanding);
+        U q=0;
+        for (U cand=lambda.den;cand<=200 && !q;cand+=lambda.den) {
+            bool ok=true;
+            for (U n=tail;n+cand<N && ok;++n) ok=s[n+cand]-s[n]==cand*lambda.num/lambda.den;
+            if (ok) q=cand;
+        }
+        check(q!=0,"no period with slope lambda in the tail"+at);
+        // Transient: first n0 from which the periodic relation holds through the end.
+        U n0=tail;
+        while (n0>0 && s[n0-1+q]-s[n0-1]==q*lambda.num/lambda.den) --n0;
+        longest=std::max(longest,n0);
+        // Response time over one period: sum (s_n + D - a_n) = q (P lambda - Z).
+        U response=0;
+        for (U n=tail;n<tail+q;++n) response+=d.start[n]+D-d.arrival[n];
+        check(response*lambda.den==q*(P*lambda.num-Z*lambda.den),"mean response R = P*lambda - Z"+at);
+        // Which term binds (ties counted once, memory credits first).
+        if (lambda==a::Rational{I,1}) ++issue_bound;
+        else if (lambda.num*m.outstanding==D*lambda.den) ++memory_bound;
+        else ++source_bound;
+        ++cases;
+    }
+    std::cout<<"K3a: "<<cases<<" configurations x "<<N<<" admissions match MemoryService; binding term "
+             <<"I "<<issue_bound<<", D/K "<<memory_bound<<", (Z+D)/P "<<source_bound
+             <<"; longest transient "<<longest<<" admissions\n";
+}
 }
 int main() {
     try {
         hop_sums();
         goldens();
         zero_load_vs_evaluator();
+        k3a();
         std::cout<<"cluster theorem tests passed\n";
     } catch (const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
 }

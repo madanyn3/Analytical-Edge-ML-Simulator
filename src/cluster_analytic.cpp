@@ -1,6 +1,9 @@
 #include "edge/cluster_analytic.hpp"
 #include "edge/checked.hpp"
+#include <algorithm>
+#include <numeric>
 #include <stdexcept>
+#include <vector>
 
 namespace edge::analytic {
 namespace {
@@ -56,5 +59,26 @@ U l2_hit_sum_over_banks(const ClusterConfig& c,U core_tile) {
     const U fixed=mul(banks,add(add(c.l1.lookup_cycles,c.l2.lookup_cycles),c.l1.fill_cycles));
     const U per_hop=mul(2,add(t.router_cycles,t.link_cycles));
     return add(add(fixed,mul(per_hop,hop_sum_from(t,core_tile))),mul(mul(banks-1,f_l1-1),t.link_cycles));
+}
+std::vector<U> k3a_admissions(U P,U Z,U D,U I,U K,U count) {
+    if (!P || !I || !K) throw std::invalid_argument("K3a needs P, I, K >= 1");
+    std::vector<U> s;
+    s.reserve(count);
+    for (U n=0;n<count;++n) {
+        U t=n<P?Z:add(add(s[n-P],D),Z);           // Source's previous completion + Z.
+        if (n>=1) t=std::max(t,add(s[n-1],I));      // Issue spacing.
+        if (n>=K) t=std::max(t,add(s[n-K],D));      // Credit freed by request n-K.
+        s.push_back(t);
+    }
+    return s;
+}
+Rational k3a_cycle_time(U P,U Z,U D,U I,U K) {
+    if (!P || !I || !K) throw std::invalid_argument("K3a needs P, I, K >= 1");
+    Rational best{I,1};
+    // a/b > c/d  <=>  a*d > c*b for positive denominators.
+    for (const Rational r:{Rational{D,K},Rational{add(Z,D),P}})
+        if (mul(r.num,best.den)>mul(best.num,r.den)) best=r;
+    const U g=std::gcd(best.num,best.den);
+    return {best.num/g,best.den/g};
 }
 }

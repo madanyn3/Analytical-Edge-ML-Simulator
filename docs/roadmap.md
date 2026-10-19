@@ -157,8 +157,9 @@ exact under LRU.
   `λ = max(I, D/K, (Z+D)/P)`. So the asymptotic throughput bounds
   `X = min(1/I, K/D, P/(Z+D))` are attained exactly, with latency `R = P·λ − Z`. A blocking
   server with service `S` is the case `K=1, I=D=S`. Proving the transient length is
-  open: a scratch check found transients of up to 20 admissions for P ≤ 6, so it is not
-  bounded by P. See [the cluster design](cluster-design.md) §4.1.
+  open: the in-repo check (3,000 configurations against `MemoryService`) found transients
+  of up to 30 admissions for P ≤ 8, so it is not bounded by P. See
+  [the cluster design](cluster-design.md) §6 N3.
 - **K3b. Approximation study.** For heterogeneous `Z_p` and mixed hit/miss streams, compare
   against the exact K2 result: mean value analysis (MVA, exact for product-form networks,
   approximate here), balanced job bounds, and the asymptotic bounds. Expect MVA to be

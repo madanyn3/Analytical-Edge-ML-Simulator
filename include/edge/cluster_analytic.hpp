@@ -43,4 +43,20 @@ ZeroLoadRead zero_load_read(const ClusterConfig&, U core_tile, U bank);
 // The last term counts only non-local banks: T0 is not affine in H because H = 0
 // costs nothing. Divided by B it is the mean over a uniformly distributed line.
 U l2_hit_sum_over_banks(const ClusterConfig&, U core_tile);
+
+// --- N3 / K3a: closed-loop sources on the memory service ------------------------------
+// P sources, each with constant compute Z, attached directly to a FIFO MemoryService
+// (no network) with per-request latency D, issue spacing I and K credits. Request n
+// comes from source n mod P (cyclic order is preserved), and admissions satisfy
+//   s_n = max(a_n, s_(n-1) + I, s_(n-K) + D),   a_n = Z (n < P),  a_n = s_(n-P) + D + Z,
+// with terms whose index is negative dropped. Returns s_0 .. s_(count-1).
+std::vector<U> k3a_admissions(U sources, U compute, U latency, U spacing, U credits, U count);
+// Exact rational num/den in lowest terms.
+struct Rational {
+    U num, den;
+    bool operator==(const Rational&) const = default;
+};
+// Cycle time lambda = max(I, D/K, (Z + D)/P): the maximum cycle mean of the max-plus
+// recurrence above. Throughput X = 1/lambda = min(1/I, K/D, P/(Z + D)) is attained.
+Rational k3a_cycle_time(U sources, U compute, U latency, U spacing, U credits);
 }
