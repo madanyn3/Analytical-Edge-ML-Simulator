@@ -24,7 +24,9 @@ std::string report_cluster(const ClusterConfig& c,const ClusterResult& r) {
     o<<std::setprecision(12)
      <<"classification=exact_under_configured_abstraction; synthetic_cluster; hardware_unvalidated\n"
      <<"engine="<<c.stimulus.engine<<"\ntopology="<<c.topology.kind<<' '<<c.topology.k<<'x'<<c.topology.k
-     <<"\ncores="<<c.cores.size()<<"\nreads="<<r.reads.size()<<"\nevents="<<r.events
+     <<"\ncores="<<c.cores.size()<<"\nevaluated_reads="<<r.reads.size()
+     <<"\nskipped_reads="<<r.skipped_reads<<"\nskipped_periods="<<r.skipped_periods
+     <<"\nskipped_cycles="<<r.skipped_cycles<<"\nevents="<<r.events
      <<"\ntransactions="<<r.transactions<<'\n';
     // Makespan T: last completion over all cores. Every utilization below is busy/T over
     // [0, T]; it is a ratio of exact counts, not a steady-state estimate.

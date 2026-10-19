@@ -1,6 +1,9 @@
 #include "edge/cluster.hpp"
 #include "edge/checked.hpp"
 #include <algorithm>
+#include <array>
+#include <limits>
+#include <string>
 #include <map>
 #include <optional>
 #include <stdexcept>
@@ -42,7 +45,7 @@ public:
         :c_(config),net_(config.topology),map_{config.l2.geometry.line_bytes,config.topology.k*config.topology.k,config.l2.geometry.sets},
          memory_(config.memory) {
         validate_cluster_config(c_);
-        if (c_.stimulus.engine!="finite") throw std::invalid_argument("periodic_state engine is not implemented yet");
+        periodic_=c_.stimulus.engine=="periodic_state";
         const U tiles=map_.banks;
         r_.cores.resize(c_.cores.size());
         r_.l1_state.assign(c_.cores.size(),CacheState(c_.l1.geometry.sets));
@@ -54,13 +57,20 @@ public:
     ClusterResult run() {
         // a_(p,0) = start_p + c_0: every core's first read begins its private walk.
         for (std::size_t p=0;p<cores_.size();++p) begin(p,add(c_.cores[p].start_cycles,c_.cores[p].compute_cycles));
+        std::optional<U> last;
         for (;;) {
             const auto t=next_time();
             if (!t) break;
+            // Checkpoint only between distinct times, when everything before t is done.
+            if (periodic_ && (!last || *t>*last) && checkpoint(*t)) continue;
+            last=t;
             if (++r_.events>c_.stimulus.max_events) throw std::length_error("event budget exceeded");
             // Phase 1: deliveries. Phase 2 (core issues/lookups) happens inside the
             // handlers: private L1 work never depends on other cores (BK3).
             for (auto d:net_.deliveries(*t)) deliver(d.id,*t);
+            // Phase 2: cores whose next read issues now start their private L1 walk.
+            for (std::size_t p=0;p<cores_.size();++p)
+                if (cores_[p].resuming && cores_[p].issue==*t) { cores_[p].resuming=false; walk(p,*t); }
             // Phase 3: grants in fixed resource order: memory controller, banks, links.
             if (memory_grant_time()==t) grant_memory(*t);
             for (U b=0;b<banks_.size();++b) if (bank_grant_time(b)==t) grant_bank(b,*t);
@@ -78,7 +88,8 @@ public:
         return std::move(r_);
     }
 private:
-    struct Core { U next{}, issue{}; std::vector<U> lines; std::size_t ref{}; };
+    // `resuming`: the next read is set up and its L1 walk starts at `issue` (phase 2).
+    struct Core { U next{}, issue{}; std::vector<U> lines; std::size_t ref{}; bool resuming{}; };
     struct Bank { std::vector<BankRequest> queue; U free{}; bool waiting_memory{}; U pointer{}; BankRequest serving{}; U granted{}; };
     const ClusterConfig& c_;
     noc::Network net_;
@@ -90,6 +101,171 @@ private:
     std::vector<MemoryRequest> memory_queue_;
     std::map<U,PacketInfo> packets_;
     U next_packet_{}, seq_{};
+
+    // ---- periodic_state: exact period skipping (design §5) -------------------------
+    // Counters at a checkpoint, to form per-period deltas.
+    struct Snapshot {
+        U time;
+        std::vector<U> next;
+        std::vector<CoreStats> cores;
+        std::vector<BankStats> banks;
+        std::vector<noc::LinkStats> links;
+        U memory_requests, memory_wire_bytes, memory_wait_cycles;
+    };
+    bool periodic_{};
+    std::map<std::string,Snapshot> seen_;
+    std::size_t seen_bytes_{};
+    static constexpr std::size_t key_budget_bytes=64u<<20; // Beyond it: no new keys.
+    std::optional<std::pair<std::size_t,U>> mark_;       // (clock core, block) last keyed.
+
+    // Canonical state relative to T (every event before T processed). Two equal keys
+    // at T1 < T2 mean the whole system at T2 is the system at T1 translated by T2 - T1:
+    // every rule of the model compares times only with each other or adds constants,
+    // so the futures coincide up to that translation, counter increments included.
+    //  - cores: read index mod address_period (or finished), issue time, line cursor;
+    //  - L1 and L2 contents (absolute line numbers: periodic streams revisit lines);
+    //  - banks: free clamped to T (a past free time cannot delay a grant at >= T),
+    //    pointer, the request served during a miss and its grant time, sorted queue;
+    //  - memory queue (sorted) and service state: next_issue clamped to T and only
+    //    completions after T (credits completing by T are free for any admission at
+    //    >= T; earliest_admission then agrees wherever a grant time is defined);
+    //  - network: Network::state_key, packets described by content.
+    // Sequence numbers and packet ids are omitted: they never decide a tie.
+    std::string key(U T) const {
+        std::string k;
+        // Raw 8-byte words; every variable-length part is preceded by its length, so the
+        // encoding is injective. Offsets are v - T (mod 2^64).
+        auto num=[&](U v){ k.append(reinterpret_cast<const char*>(&v),sizeof v); };
+        for (std::size_t p=0;p<cores_.size();++p) {
+            const auto& core=cores_[p];
+            const auto& cfg=c_.cores[p];
+            if (core.next>=cfg.count) { num(~U{0}); continue; }   // Finished.
+            num(core.next%cfg.address_period); num(core.issue-T); num(core.ref); num(core.resuming);
+        }
+        auto cache=[&](const CacheState& state) {
+            for (const auto& set:state) { num(set.size()); for (U line:set) num(line); }
+        };
+        for (const auto& st:r_.l1_state) cache(st);
+        for (const auto& st:r_.l2_state) cache(st);
+        std::vector<std::array<U,4>> q;
+        for (const auto& bank:banks_) {
+            num(bank.free>T?bank.free-T:0); num(bank.pointer); num(bank.waiting_memory);
+            if (bank.waiting_memory) { num(bank.serving.source); num(bank.serving.l1_line); num(bank.serving.core); num(bank.granted-T); }
+            q.clear();
+            for (const auto& r:bank.queue) q.push_back({r.arrival-T,r.source,r.l1_line,static_cast<U>(r.core)});
+            std::sort(q.begin(),q.end());
+            num(q.size());
+            for (const auto& e:q) for (U v:e) num(v);
+        }
+        std::vector<std::array<U,3>> mq;
+        for (const auto& r:memory_queue_) mq.push_back({r.arrival-T,r.bank,r.l2_line});
+        std::sort(mq.begin(),mq.end());
+        num(mq.size());
+        for (const auto& e:mq) for (U v:e) num(v);
+        const auto& m=memory_.state();
+        num(m.next_issue>T?m.next_issue-T:0);
+        U live=0;
+        for (U done:m.pending) live+=done>T;
+        num(live);
+        for (U done:m.pending) if (done>T) num(done-T);
+        net_.state_key(k,T,[&](U id) {
+            const auto& i=packets_.at(id);
+            return noc::Network::Describe{static_cast<U>(i.kind),static_cast<U>(i.core),i.bank,i.line};
+        });
+        return k;
+    }
+    Snapshot snapshot(U T) const {
+        Snapshot s{T,{},r_.cores,r_.banks,net_.all_link_stats(),r_.memory_requests,r_.memory_wire_bytes,r_.memory_wait_cycles};
+        for (const auto& core:cores_) s.next.push_back(core.next);
+        return s;
+    }
+    // Keys are formed when the clock core (first unfinished core) enters a new block of
+    // address_period reads. The rule depends only on the state, so in a periodic regime
+    // it samples the same phase every period. Returns true if it skipped.
+    bool checkpoint(U T) {
+        std::optional<std::size_t> clock;
+        for (std::size_t p=0;p<cores_.size() && !clock;++p) if (cores_[p].next<c_.cores[p].count) clock=p;
+        if (!clock) return false;
+        const std::pair<std::size_t,U> mark{*clock,cores_[*clock].next/c_.cores[*clock].address_period};
+        if (mark_==mark) return false;
+        mark_=mark;
+        auto k=key(T);
+        const auto it=seen_.find(k);
+        if (it==seen_.end()) {
+            if (seen_bytes_+k.size()<=key_budget_bytes) { seen_bytes_+=k.size(); seen_.emplace(std::move(k),snapshot(T)); }
+            return false;
+        }
+        return skip(it->second,T);
+    }
+    // State at T equals the state at s.time translated by delta. Skip m whole periods,
+    // with m chosen so every unfinished core is still unfinished afterwards: up to that
+    // point the finite run equals the unbounded periodic one.
+    bool skip(const Snapshot& s,U T) {
+        const U delta=T-s.time;
+        if (!delta) return false;
+        U m=std::numeric_limits<U>::max();
+        std::vector<U> step(cores_.size());
+        for (std::size_t p=0;p<cores_.size();++p) {
+            const U count=c_.cores[p].count;
+            step[p]=cores_[p].next-s.next[p];
+            if (cores_[p].next>=count) { if (step[p]) throw std::logic_error("finished core advanced"); continue; }
+            if (!step[p]) return false; // Cannot happen for equal keys; refuse rather than assume.
+            m=std::min(m,(count-1-cores_[p].next)/step[p]);
+        }
+        // Leave at least one whole period to evaluate after the skip (m = q - 1): any
+        // memory credit that completed by T and is dead in the key, but still listed by
+        // the service, is then pruned by a real admission exactly as in the finite run.
+        if (m==std::numeric_limits<U>::max() || m<2) return false;
+        --m;
+        const U shift=mul(m,delta);
+        auto bump=[&](U& now,U before){ now=add(now,mul(now-before,m)); };
+        auto bump_level=[&](LevelStats& now,const LevelStats& b) {
+            bump(now.references,b.references); bump(now.hits,b.hits); bump(now.misses,b.misses);
+            bump(now.evictions,b.evictions); bump(now.invalidations,b.invalidations); bump(now.fill_bytes,b.fill_bytes);
+        };
+        U reads=0;
+        for (std::size_t p=0;p<cores_.size();++p) {
+            if (!step[p]) continue;
+            auto& core=cores_[p];
+            auto& st=r_.cores[p];
+            const auto& b=s.cores[p];
+            if (b.reads && st.last_done!=add(b.last_done,delta)) throw std::logic_error("period skip: last completion not translated");
+            core.next=add(core.next,mul(step[p],m));
+            core.issue=add(core.issue,shift);
+            bump(st.reads,b.reads); bump(st.latency_sum,b.latency_sum); bump_level(st.l1,b.l1);
+            st.last_done=add(st.last_done,shift);  // min/max latency repeat unchanged.
+            reads=add(reads,mul(step[p],m));
+        }
+        for (std::size_t i=0;i<banks_.size();++i) {
+            auto& bank=banks_[i];
+            for (auto& q:bank.queue) q.arrival=add(q.arrival,shift);
+            bank.free=add(bank.free,shift); bank.granted=add(bank.granted,shift);
+            bank.serving.arrival=add(bank.serving.arrival,shift);
+            auto& st=r_.banks[i];
+            const auto& b=s.banks[i];
+            bump_level(st.l2,b.l2); bump(st.grants,b.grants); bump(st.wait_cycles,b.wait_cycles); bump(st.busy_cycles,b.busy_cycles);
+        }
+        for (auto& q:memory_queue_) q.arrival=add(q.arrival,shift);
+        // A period without admissions leaves the service literally unchanged (its times
+        // are all <= T, hence clamped or dropped in the key): keep it as is, which is
+        // what the finite run holds. Otherwise translate it with everything else.
+        if (r_.memory_requests>s.memory_requests) {
+            auto ms=memory_.state();
+            ms.next_issue=add(ms.next_issue,shift);
+            for (auto& d:ms.pending) d=add(d,shift);
+            ms.last_arrival=add(ms.last_arrival,shift);
+            memory_=MemoryService(c_.memory,ms);
+        }
+        bump(r_.memory_requests,s.memory_requests); bump(r_.memory_wire_bytes,s.memory_wire_bytes);
+        bump(r_.memory_wait_cycles,s.memory_wait_cycles);
+        net_.skip(shift,s.links,m);
+        r_.skipped_reads=add(r_.skipped_reads,reads);
+        r_.skipped_cycles=add(r_.skipped_cycles,shift);
+        r_.skipped_periods=add(r_.skipped_periods,m);
+        // Stored snapshots describe pre-skip times; start afresh.
+        seen_.clear(); seen_bytes_=0; mark_.reset();
+        return true;
+    }
 
     void charge() {
         if (++r_.transactions>c_.stimulus.max_transactions) throw std::length_error("transaction budget exceeded");
@@ -110,11 +286,13 @@ private:
         const U l1=c_.l1.geometry.line_bytes;
         core.lines.clear();
         for (U line=a/l1;;++line) { core.lines.push_back(line); if (line==add(a,k.bytes-1)/l1) break; }
-        core.issue=issue; core.ref=0;
-        walk(p,issue);
+        core.issue=issue; core.ref=0; core.resuming=true;
     }
-    // Serial L1 line references from time t. Hits continue; the first miss sends a
-    // REQ and suspends the core until its RESP is delivered (blocking core, CL1).
+    // Serial L1 line references of the current read from time t. Hits continue; the
+    // first miss sends a REQ and suspends the core until its RESP is delivered
+    // (blocking core, CL1). A completed read sets up the next one, which resumes as its
+    // own event at its issue time: a core never runs ahead of the event loop, so
+    // periodic_state checkpoints also see long all-hit streams.
     void walk(std::size_t p,U t) {
         auto& core=cores_[p];
         auto& stats=r_.cores[p];
@@ -130,16 +308,8 @@ private:
                 stats.last_done=t;
                 r_.reads.push_back({p,core.next,core.issue,t});
                 ++core.next;
-                const auto& k=c_.cores[p];
-                if (core.next>=k.count) return;
-                // Iterative rather than recursive: long all-hit streams stay flat.
-                const U issue=add(t,k.compute_cycles);
-                if (r_.reads.size()>=c_.stimulus.max_requests) throw std::length_error("request budget exceeded");
-                const U a=add(k.address,mul(core.next%k.address_period,k.stride));
-                core.lines.clear();
-                for (U line=a/g.line_bytes;;++line) { core.lines.push_back(line); if (line==add(a,k.bytes-1)/g.line_bytes) break; }
-                core.issue=issue; core.ref=0; t=issue;
-                continue;
+                begin(p,add(t,c_.cores[p].compute_cycles));   // a_(k+1) = d_k + c_(k+1).
+                return;
             }
             charge();
             const U line=core.lines[core.ref];
@@ -270,6 +440,7 @@ private:
     std::optional<U> next_time() const {
         std::optional<U> t=net_.next_time();
         auto consider=[&](std::optional<U> v){ if (v) t=t?std::min(*t,*v):*v; };
+        for (const auto& core:cores_) if (core.resuming) consider(core.issue);
         consider(memory_grant_time());
         for (U b=0;b<banks_.size();++b) consider(bank_grant_time(b));
         return t;

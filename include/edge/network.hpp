@@ -4,6 +4,8 @@
 // unbounded router buffers (virtual cut-through, NW1–NW3). The class is event driven:
 // it never ticks idle cycles; a caller advances it between event times it reports.
 #include "edge/noc.hpp"
+#include <array>
+#include <functional>
 #include <map>
 #include <optional>
 
@@ -37,6 +39,20 @@ public:
     // Grants at t only create events at >= t + t_l > t, so link order within t is free.
     void grants(U t);
     const LinkStats& link_stats(Link l) const { return stats_[topology_.link_index(l)]; }
+    const std::vector<LinkStats>& all_link_stats() const { return stats_; } // By link index.
+    // Canonical state relative to T, valid when every event before T is processed:
+    // link free times clamped to T (a free time <= T acts as T, since no grant can
+    // happen before T), ready and delivery times as signed offsets from T, and
+    // packets named by `describe(id)` plus route and hop instead of by id (ids never
+    // decide arbitration, see Packet::rank). Waiting entries are sorted, so queue
+    // insertion order (irrelevant to arbitration) does not enter the key.
+    // Appends to `key` as raw 8-byte words; offsets are encoded as v - T (mod 2^64),
+    // which is injective while |offset| < 2^63.
+    using Describe = std::array<U, 4>;
+    void state_key(std::string& key, U T, const std::function<Describe(U)>& describe) const;
+    // Period skip: translate every stored time by +shift and add
+    // multiplier * (stats_now - before) to every link counter.
+    void skip(U shift, const std::vector<LinkStats>& before, U multiplier);
     const Topology& topology() const { return topology_; }
     bool idle() const;
 private:

@@ -27,20 +27,25 @@ evaluation and print the evaluated request completions.
 constraints are specified in [the cluster design](cluster-design.md), section 7. They use
 the same lexical rules as version 1 (shared lexer `src/ini.cpp`). `edge_bench` reads
 `[model] version` and runs version 2 files through the exact cluster evaluator
-(`run_cluster`); `--trace` is rejected for them. Only `engine=finite` runs today:
-`periodic_state` parses but the evaluator fails explicitly until it is implemented.
+(`run_cluster`); `--trace` is rejected for them. `engine=finite` evaluates every read.
+`engine=periodic_state` evaluates until a normalized state key repeats, then skips whole
+periods exactly (cluster design §5); its results equal `finite` except that skipped reads
+are counted (`skipped_reads`, `skipped_periods`, `skipped_cycles`) rather than listed.
+For `finite`, the total read count must fit `max_requests`; for `periodic_state`, the
+budgets bound evaluated work only.
 
 Examples (synthetic parameters, not hardware claims):
 
 | File | Topology | MC tile | Stimulus |
 |---|---|---|---|
-| `configs/cluster-2x2-mesh.ini` | 2×2 mesh | 0 | 4 cores × 1000 reads, 64 private L2 lines each |
-| `configs/cluster-3x3-torus.ini` | 3×3 torus | 4 (centre) | 9 cores × 1000 reads, 32 lines each |
-| `configs/cluster-4x4-mesh.ini` | 4×4 mesh | 0 (corner) | 16 cores × 1000 reads, 64 lines each; L2 exactly full |
+| `configs/cluster-2x2-mesh.ini` | 2×2 mesh | 0 | `periodic_state`: 4 cores × 10⁶ reads, 64 private L2 lines each |
+| `configs/cluster-3x3-torus.ini` | 3×3 torus | 4 (centre) | `periodic_state`: 9 cores × 10⁶ reads, 32 lines each |
+| `configs/cluster-4x4-mesh.ini` | 4×4 mesh | 0 (corner) | `finite`: 16 cores × 1000 reads, 64 lines each; L2 exactly full (long transient, see design §5) |
 
 The report (`report_cluster`) prints, all exact under the configured abstraction:
 
-- totals: reads, events, transactions, makespan T (last completion over all cores);
+- totals: evaluated and skipped reads, skipped periods and cycles, events, transactions,
+  makespan T (last completion over all cores);
 - per core: tile coordinates, XY hops to the MC, read count, mean/min/max latency,
   last completion, L1 hits/misses/evictions, reads per 1000 cycles;
 - fairness: Jain's index over per-core throughput reads/(last_done − start) and the

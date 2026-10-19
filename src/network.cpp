@@ -2,6 +2,7 @@
 #include "edge/checked.hpp"
 #include <algorithm>
 #include <stdexcept>
+#include <string>
 
 namespace edge::noc {
 using checked::add;
@@ -102,6 +103,53 @@ void Network::grants(U t) {
             pending_.push_back({w.id,add(t,occupancy)});
             flights_.erase(w.id);
         }
+    }
+}
+namespace {
+void put(std::string& k,U v) { k.append(reinterpret_cast<const char*>(&v),sizeof v); }
+}
+void Network::state_key(std::string& k,U T,const std::function<Describe(U)>& describe) const {
+    using Entry=std::array<U,11>;
+    std::vector<Entry> entries;
+    for (std::size_t index=0;index<links_.size();++index) {
+        const auto& l=links_[index];
+        if (l.queue.empty() && l.free<=T && !l.pointer) continue; // Idle link: no entry.
+        put(k,index); put(k,l.free>T?l.free-T:0); put(k,l.pointer); put(k,l.queue.size());
+        entries.clear();
+        for (const auto& w:l.queue) {
+            const auto& f=flights_.at(w.id);
+            const auto d=describe(w.id);
+            entries.push_back({w.ready-T,static_cast<U>(w.in),w.rank,f.packet.source,f.packet.target,
+                               f.packet.flits,static_cast<U>(w.hop),d[0],d[1],d[2],d[3]});
+        }
+        std::sort(entries.begin(),entries.end());
+        for (const auto& e:entries) for (U v:e) put(k,v);
+    }
+    put(k,~U{0}); // Separator: no link index takes this value.
+    std::vector<std::array<U,5>> deliveries;
+    for (const auto& d:pending_) {
+        const auto x=describe(d.id);
+        deliveries.push_back({d.time-T,x[0],x[1],x[2],x[3]});
+    }
+    std::sort(deliveries.begin(),deliveries.end());
+    put(k,deliveries.size());
+    for (const auto& e:deliveries) for (U v:e) put(k,v);
+}
+void Network::skip(U shift,const std::vector<LinkStats>& before,U m) {
+    if (before.size()!=stats_.size()) throw std::invalid_argument("link stats size mismatch");
+    now_=add(now_,shift);
+    for (auto& l:links_) {
+        l.free=add(l.free,shift);
+        for (auto& w:l.queue) w.ready=add(w.ready,shift);
+    }
+    for (auto& d:pending_) d.time=add(d.time,shift);
+    for (std::size_t i=0;i<stats_.size();++i) {
+        auto& s=stats_[i];
+        const auto& b=before[i];
+        s.packets=add(s.packets,mul(s.packets-b.packets,m));
+        s.flits=add(s.flits,mul(s.flits-b.flits,m));
+        s.busy_cycles=add(s.busy_cycles,mul(s.busy_cycles-b.busy_cycles,m));
+        s.wait_cycles=add(s.wait_cycles,mul(s.wait_cycles-b.wait_cycles,m));
     }
 }
 bool Network::idle() const { return pending_.empty() && flights_.empty(); }

@@ -358,6 +358,64 @@ int main() {
             check(queued*2>cases,"most random clusters exercise bank or link queueing");
             std::cout<<"cluster oracle sweep: "<<cases<<" random clusters, "<<queued<<" with queueing\n";
         }
+        // periodic_state against finite (finite is checked against the oracle above).
+        // Results must be identical except that skipped reads are counted, not listed:
+        // every listed read equals finite's record for the same (core, index).
+        {
+            std::mt19937_64 rng(20261022);
+            auto pick=[&](U lo,U hi){ return std::uniform_int_distribution<U>(lo,hi)(rng); };
+            auto choose=[&](std::initializer_list<const char*> v){ return *(v.begin()+pick(0,v.size()-1)); };
+            U cases=0,skipped=0;
+            for (int trial=0;trial<120;++trial) {
+                edge::ClusterConfig c=base();
+                const bool torus=pick(0,3)==0;
+                const U k=torus?3:pick(2,3);
+                c.topology={torus?"torus":"mesh",k,pick(0,k*k-1),pick(0,2),pick(1,2),pick(0,1)?U{16}:U{8},choose({"fifo","round_robin"}),"t"};
+                const U l1line=pick(0,1)?U{16}:U{32};
+                c.l1={{l1line,pick(1,4),pick(1,2)},pick(1,2),pick(0,2),"","t"};
+                c.l2={{l1line*pick(1,2),pick(1,4),pick(1,2)},pick(1,4),pick(0,2),choose({"fifo","round_robin","fixed_priority"}),"t"};
+                c.memory={pick(5,20),pick(0,1)?U{8}:U{16},pick(1,2),pick(1,4),pick(1,3),"t"};
+                std::vector<U> tiles(k*k); for (U i=0;i<tiles.size();++i) tiles[i]=i;
+                std::shuffle(tiles.begin(),tiles.end(),rng);
+                const U n=pick(1,k*k);
+                c.cores.clear();
+                for (U i=0;i<n;++i)
+                    c.cores.push_back({"c"+std::to_string(i),tiles[i],pick(0,20),pick(0,15),pick(30,200),
+                                       pick(0,1023),pick(1,40),pick(0,256),pick(1,6)});
+                c.stimulus={"finite",100000,10000000,10000000};
+                const auto f=edge::run_cluster(c);
+                c.stimulus.engine="periodic_state";
+                const auto p=edge::run_cluster(c);
+                const std::string at=" (periodic trial "+std::to_string(trial)+")";
+                check(p.cores==f.cores && p.banks==f.banks && p.links==f.links,"core/bank/link counters"+at);
+                check(p.memory_requests==f.memory_requests && p.memory_wire_bytes==f.memory_wire_bytes &&
+                      p.memory_wait_cycles==f.memory_wait_cycles,"memory counters"+at);
+                check(p.l1_state==f.l1_state && p.l2_state==f.l2_state,"final cache states"+at);
+                check(p.memory_state==f.memory_state,"final memory service state"+at);
+                check(p.reads.size()+p.skipped_reads==f.reads.size(),"listed + skipped reads = all reads"+at);
+                std::map<std::pair<U,U>,edge::ReadRecord> all;
+                for (const auto& x:f.reads) all.emplace(std::pair{x.core,x.index},x);
+                for (const auto& x:p.reads) check(all.at({x.core,x.index})==x,"listed read equals finite"+at);
+                skipped+=p.skipped_reads>0; ++cases;
+            }
+            check(skipped*2>cases,"most periodic sweeps actually skip");
+            std::cout<<"periodic_state sweep: "<<cases<<" clusters equal to finite, "<<skipped<<" skipped periods\n";
+        }
+        // A run only periodic_state can do: 10^9 reads of one address. After the cold
+        // miss (76 cycles, diagonal bank) every read is an L1 hit of 1 cycle, so
+        // read k completes at 10 + 76 + k(10 + 1) and the last at 86 + (N-1)*11.
+        {
+            auto c=base();
+            const U N=1000000000;
+            c.cores={core("c0",0,N,192,32,1)};
+            c.stimulus.engine="periodic_state";
+            const auto r=edge::run_cluster(c);
+            const auto& s=r.cores[0];
+            check(s.reads==N && s.l1.hits==N-1 && s.l1.misses==1,"10^9 reads counted");
+            check(s.last_done==86+(N-1)*11,"last completion 86 + (N-1)*11");
+            check(s.latency_sum==76+(N-1) && s.min_latency==1 && s.max_latency==76,"latency sum/min/max");
+            check(r.reads.size()<1000 && r.skipped_reads+r.reads.size()==N,"almost everything skipped");
+        }
         // The bench report prints the evaluator's counts unchanged. Same three reads as the
         // first golden: latencies 76, 16, 1 (mean 31), last completion 122 + 1 = 123.
         {

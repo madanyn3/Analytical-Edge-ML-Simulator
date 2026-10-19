@@ -196,18 +196,77 @@ resource changes state. The next event time is the minimum over pending deliveri
 completions, compute ends, and earliest grant times. Each of these is known from current
 state, because every granted operation's end time is computed at its grant.
 
-**Exact acceleration (periodic state).** At each event time, form a **normalized key**
-containing:
-- all queues and residual busy times relative to `t`;
-- every cache's contents in MRU-to-LRU order;
-- round-robin pointers;
-- memory readiness and credits;
-- each core's program position modulo its address period.
+**Exact acceleration (periodic state).** Implemented in `src/cluster.cpp`
+(`engine=periodic_state`).
 
-If a key repeats after `c` grants with elapsed time `Δ`, determinism and translation
-invariance prove exact repetition. The evaluator then skips whole periods and finishes
-the remainder explicitly. This is the version-1 `stable_blocks` proof generalized. If no
-repeat is found within budget, the run fails explicitly.
+*Cores yield at read boundaries.* When a read completes, the core sets up the next one
+and resumes it as its own event at its issue time (phase 2). Timing is unchanged, because
+L1s are private and injection order never decides arbitration; the oracle sweep confirms
+this. It matters because an all-hit stream would otherwise run ahead inside a single
+handler call, where no checkpoint can see it.
+
+*Checkpoints.* A key is formed at the top of the event loop, at a time T when every
+event before T is processed. This happens only when the clock core (the first unfinished
+core) enters a new block of `address_period` reads. The rule depends only on the state,
+so a periodic regime is sampled at the same phase every period.
+
+*Normalized key relative to T.* Fields are raw 8-byte words with length prefixes, so the
+encoding is injective; offsets are stored as `v − T` mod 2⁶⁴.
+- **Cores:** read index mod `address_period` (or finished), issue offset, line cursor,
+  resume flag.
+- **Caches:** L1 and L2 contents, MRU to LRU (absolute line numbers: periodic streams
+  revisit the same lines).
+- **Banks:** free time clamped to T, pointer, the request served during a miss and its
+  grant offset, and the queue sorted by (arrival offset, source, line, core).
+- **Memory controller:** queue sorted by (arrival offset, bank, line); `next_issue`
+  clamped to T; only credits completing after T.
+- **Network:** for each non-idle link, free time clamped to T, pointer, and sorted
+  waiting entries (ready offset, input port, class rank, route, hop, packet content);
+  then the sorted pending deliveries.
+
+Sequence numbers and packet ids are left out because they never decide a tie (§4.3).
+
+*Why the clamps are exact.*
+- **Links and banks:** grant time is max(free, earliest ready). A grant time before T
+  would already have been processed, so a free time at or before T acts exactly like T.
+- **Memory:** every admission at s ≥ T releases all credits completing at or before s,
+  and starts at max(s, `next_issue`). So completions at or before T, and a `next_issue`
+  at or before T, cannot change any admission. A case check on `earliest_admission`
+  shows the controller's grant time agrees as well, wherever one is defined.
+
+*Skip.* If the key at T₂ equals a stored key at T₁, the state at T₂ is the state at T₁
+translated by Δ = T₂ − T₁. Every rule only compares times or adds constants, so the
+future, counter increments included, is translated too. Let q be the largest number of
+periods for which every unfinished core stays unfinished. The engine skips m = q − 1
+periods:
+- shift every stored time by mΔ;
+- add m × (per-period delta) to every counter;
+- advance each core's read index by m × its per-period reads.
+
+Minimum and maximum latency repeat unchanged. It then finishes with ordinary events.
+
+Leaving one whole period unskipped keeps even the literal final memory-service state
+equal to the finite run's. The first admission in that period overwrites `next_issue`
+and prunes dead credits. If memory had no admissions during the period, its state is
+left untouched, which is what the finite run holds.
+
+Skipped reads are counted (`skipped_reads`, `skipped_periods`, `skipped_cycles`) but
+not listed. Every listed read equals the finite run's record for the same (core,
+index).
+
+*Budgets.* Budgets apply to evaluated work only. Stored keys are capped at 64 MiB.
+Beyond that the run continues as finite and the event budget still applies, so a run
+that never repeats fails explicitly instead of running forever.
+
+*Checks.* In 120 random clusters, periodic equals finite on every counter, the final
+L1/L2/memory state and every listed read; 111 of them actually skipped. A run of 10⁹
+reads matches its closed form: last completion `86 + (N−1)·11`. The 2×2 and 3×3 examples
+evaluate 1,280 and 14,688 of their 4·10⁶ and 9·10⁶ reads.
+
+The 4×4 example (16 cores, round-robin, L2 exactly full) is a counterexample to quick
+repetition. Its state first repeats only after about 976,000 evaluated reads; after that
+the period is 256 reads. The long transient is real dynamics: round-robin contention
+keeps reordering LRU state. Bounding such transients is open, as it is for K3a.
 
 ## 6. Analytical results to prove and verify
 

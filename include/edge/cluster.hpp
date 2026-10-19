@@ -27,14 +27,20 @@ struct ClusterResult {
     std::vector<CoreStats> cores;         // Declaration order.
     std::vector<BankStats> banks;         // Bank index = tile index.
     std::uint64_t memory_requests{}, memory_wire_bytes{}, memory_wait_cycles{};
-    std::uint64_t events{}, transactions{};
-    std::vector<ReadRecord> reads;        // Every evaluated read, in completion order.
+    std::uint64_t events{}, transactions{};          // Evaluated work only (budgets).
+    // periodic_state: reads, cycles and whole periods skipped by exact state repetition.
+    // Counters above and per core/bank/link include skipped reads; `reads` does not.
+    std::uint64_t skipped_reads{}, skipped_cycles{}, skipped_periods{};
+    std::vector<ReadRecord> reads;        // Every evaluated read, in evaluation order.
     std::vector<CacheState> l1_state;     // Per core, L1 line numbers, MRU to LRU.
     std::vector<CacheState> l2_state;     // Per bank, L2 line numbers, MRU to LRU.
     ServiceState memory_state;
     std::vector<noc::LinkStats> links;    // Indexed by Topology::link_index.
 };
-// Finite engine: evaluates every read exactly. Budgets are enforced, never truncated.
+// finite: evaluates every read exactly. periodic_state: the same evaluation, plus exact
+// skipping of whole periods once a normalized state key repeats (design §5); results
+// equal finite except that skipped reads are counted, not listed. Budgets apply to
+// evaluated work and are enforced, never truncated.
 ClusterResult run_cluster(const ClusterConfig&);
 // Text report: per-core, per-bank and per-link counters, fairness, final states and the
 // effective configuration. Utilizations are busy/makespan ratios of exact counts.
