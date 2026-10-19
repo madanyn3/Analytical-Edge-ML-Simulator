@@ -358,6 +358,27 @@ int main() {
             check(queued*2>cases,"most random clusters exercise bank or link queueing");
             std::cout<<"cluster oracle sweep: "<<cases<<" random clusters, "<<queued<<" with queueing\n";
         }
+        // The bench report prints the evaluator's counts unchanged. Same three reads as the
+        // first golden: latencies 76, 16, 1 (mean 31), last completion 122 + 1 = 123.
+        {
+            auto c=base();
+            c.cores={core("c0",0,3,192,32,2)};
+            const auto r=edge::run_cluster(c);
+            const auto text=edge::report_cluster(c,r);
+            auto has=[&](const std::string& s){ check(text.find(s)!=std::string::npos,"report line: "+s); };
+            has("makespan_cycles=123\n");
+            has("\nc0,0,0,0,0,3,31,1,76,123,1,2,0,");          // hops_to_mc 0; 1 L1 hit, 2 misses.
+            has("fairness_jain_throughput=1\n");              // One core: J = 1 exactly.
+            const auto& b=r.banks[3];
+            has("\n3,1,1,2,1,1,0,2,"+std::to_string(b.wait_cycles)+",68,");
+            // XY 0->3 uses 0:+x and 1:+y; 3->0 uses 3:-x and 2:-y. Nothing else.
+            has("links_used=4\n");
+            has("\n2,0,0,0,+x,1,3,");                         // REQ, REQ, MRESP on 0:+x.
+            has("bank3.l2.set0=3,\n");
+            // The effective configuration in the report parses back to the input.
+            const auto tail=text.substr(text.find("# Effective configuration"));
+            check(edge::parse_cluster_config(tail.substr(tail.find('\n')+1))==c,"report config round trip");
+        }
         // Budgets fail explicitly instead of truncating.
         {
             auto c=base();

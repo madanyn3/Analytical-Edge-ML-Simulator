@@ -1,3 +1,4 @@
+#include "edge/cluster.hpp"
 #include "edge/testbench.hpp"
 #include <fstream>
 #include <iostream>
@@ -5,6 +6,13 @@
 int main(int argc,char** argv) {
     try {
         if (argc!=2 && argc!=4) throw std::invalid_argument("usage: edge_bench CONFIG [--trace READS.csv]");
+        // [model] version selects the model: 1 = single-stream hierarchy, 2 = tiled cluster.
+        if (edge::config_file_version(argv[1])==2) {
+            if (argc!=2) throw std::invalid_argument("--trace is not supported for version 2 cluster configs");
+            const auto config=edge::load_cluster_config(argv[1]);
+            std::cout<<edge::report_cluster(config,edge::run_cluster(config));
+            return 0;
+        }
         const auto config=edge::load_config(argv[1]);
         std::vector<edge::Request> reads;
         if (argc==4) {

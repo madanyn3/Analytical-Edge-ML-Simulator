@@ -73,8 +73,8 @@ int main(int argc,char** argv) {
             {"bytes=4","bytes=0"},
             {"address_period=64","address_period=0"},
             {"address=0x30000","address=0xffffffffffffffff"},  // Address overflow.
-            {"engine=periodic_state","engine=stable_blocks"},
-            {"engine=periodic_state","engine=finite"},    // 4000 reads > budget below.
+            {"engine=finite","engine=stable_blocks"},
+            {"max_requests=100000","max_requests=3999"},  // finite: 4000 reads > budget.
             {"max_requests=100000","max_requests=0"},
             {"max_events=10000000","max_events=100000001"},
             {"provenance=synthetic teaching network","provenance="},
@@ -83,9 +83,11 @@ int main(int argc,char** argv) {
         };
         for (const auto& [from,to]:bad) {
             auto mutated=replace(text,from,to);
-            if (to=="engine=finite") mutated=replace(mutated,"max_requests=100000","max_requests=3999");
             rejects([&]{edge::parse_cluster_config(mutated);},from+" -> "+to);
         }
+        // periodic_state parses (the evaluator still rejects it until implemented).
+        check(edge::parse_cluster_config(replace(text,"engine=finite","engine=periodic_state")).stimulus.engine=="periodic_state",
+              "periodic_state accepted by the parser");
         // Torus is legal from k=3, never at k=2 (duplicate wraparound link).
         rejects([&]{edge::parse_cluster_config(replace(text,"kind=mesh","kind=torus"));},"torus k=2");
         auto torus=replace(replace(text,"kind=mesh","kind=torus"),"k=2","k=3");

@@ -58,6 +58,7 @@ ctest --test-dir build --output-on-failure
 ./build/edge_bench configs/memory-latency.ini
 ./build/edge_bench configs/memory-bandwidth.ini
 ./build/edge_bench configs/hierarchy-directed.ini --trace configs/reads.csv
+./build/edge_bench configs/cluster-4x4-mesh.ini   # synthetic tiled cluster (version 2)
 ```
 
 Expected example: output `2 -3 6`, 15 MACs, 35 logical bytes, 40 requested tensor bytes, 16 source events. Firmware outputs live in `build-arm`: ELF, map, disassembly, symbols, effective macros and `manifest.json` with versions/commands/dependency hashes. The ELF is an analysis harness, **not flashable board firmware**: it has no startup/vector table or clock/cache initialization. It has not been executed on Cortex-M4. `ARM_TOOLCHAIN_ROOT` can point to an extracted copy of the same toolchain; unset it to use `.deps` (reconfigure CMake with `--fresh` when switching compilers).

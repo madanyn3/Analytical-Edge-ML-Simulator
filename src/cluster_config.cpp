@@ -39,6 +39,9 @@ std::uint64_t config_version(std::string_view text,const std::string& source) {
     if (v!=1 && v!=2) fail(source+": unsupported config version "+std::to_string(v));
     return v;
 }
+std::uint64_t config_file_version(const std::string& path) {
+    return config_version(ini::read_file(path),path);
+}
 ClusterConfig parse_cluster_config(std::string_view text,const std::string& source) {
     auto doc=ini::lex(text,source);
     auto& f=doc.fields;

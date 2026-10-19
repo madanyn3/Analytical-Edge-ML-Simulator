@@ -57,6 +57,7 @@ struct ClusterConfig {
 };
 // Reads only [model] version, after full lexical validation. Returns 1 or 2.
 std::uint64_t config_version(std::string_view text, const std::string& source = "<config>");
+std::uint64_t config_file_version(const std::string& path);
 ClusterConfig parse_cluster_config(std::string_view text, const std::string& source = "<config>");
 ClusterConfig load_cluster_config(const std::string& path);
 void validate_cluster_config(const ClusterConfig&);

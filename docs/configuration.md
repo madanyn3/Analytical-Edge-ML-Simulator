@@ -21,14 +21,40 @@ closed-loop L1 requests with guarded fixed-state acceleration. `memory-bandwidth
 uses the cold periodic-memory closed form. The other profiles use bounded finite
 evaluation and print the evaluated request completions.
 
-## Version 2: tiled cluster (parser only so far)
+## Version 2: tiled cluster
 
 `version=2` files describe the synthetic k×k mesh/torus cluster. Their sections and
 constraints are specified in [the cluster design](cluster-design.md), section 7. They use
-the same lexical rules as version 1 (shared lexer `src/ini.cpp`). The parser, validator
-and effective-config round trip are implemented and tested (`tests/cluster_config_tests.cpp`,
-example `configs/cluster-2x2-mesh.ini`). The cluster evaluator is not implemented yet, so
-`edge_bench` does not run these files.
+the same lexical rules as version 1 (shared lexer `src/ini.cpp`). `edge_bench` reads
+`[model] version` and runs version 2 files through the exact cluster evaluator
+(`run_cluster`); `--trace` is rejected for them. Only `engine=finite` runs today:
+`periodic_state` parses but the evaluator fails explicitly until it is implemented.
+
+Examples (synthetic parameters, not hardware claims):
+
+| File | Topology | MC tile | Stimulus |
+|---|---|---|---|
+| `configs/cluster-2x2-mesh.ini` | 2×2 mesh | 0 | 4 cores × 1000 reads, 64 private L2 lines each |
+| `configs/cluster-3x3-torus.ini` | 3×3 torus | 4 (centre) | 9 cores × 1000 reads, 32 lines each |
+| `configs/cluster-4x4-mesh.ini` | 4×4 mesh | 0 (corner) | 16 cores × 1000 reads, 64 lines each; L2 exactly full |
+
+The report (`report_cluster`) prints, all exact under the configured abstraction:
+
+- totals: reads, events, transactions, makespan T (last completion over all cores);
+- per core: tile coordinates, XY hops to the MC, read count, mean/min/max latency,
+  last completion, L1 hits/misses/evictions, reads per 1000 cycles;
+- fairness: Jain's index over per-core throughput reads/(last_done − start) and the
+  max/min ratio of per-core mean latency;
+- per bank: L2 references/hits/misses/evictions, grants, wait cycles (grant − arrival),
+  busy cycles and utilization busy/T;
+- memory requests, wire bytes and wait cycles;
+- per directed link that carried traffic: packets, flits, busy and wait cycles,
+  utilization busy/T, plus the busiest link;
+- final non-empty L1/L2 sets (MRU to LRU), memory-service state, and the effective
+  configuration with provenance (it parses back to the input).
+
+Utilizations are ratios over the whole run including the cold start and drain, not
+steady-state estimates. The report has no per-read latency breakdown yet.
 
 ## Strict version-1 syntax
 

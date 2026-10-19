@@ -36,4 +36,7 @@ struct ClusterResult {
 };
 // Finite engine: evaluates every read exactly. Budgets are enforced, never truncated.
 ClusterResult run_cluster(const ClusterConfig&);
+// Text report: per-core, per-bank and per-link counters, fairness, final states and the
+// effective configuration. Utilizations are busy/makespan ratios of exact counts.
+std::string report_cluster(const ClusterConfig&, const ClusterResult&);
 }
