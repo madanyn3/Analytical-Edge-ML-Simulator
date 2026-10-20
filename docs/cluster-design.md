@@ -270,6 +270,9 @@ keeps reordering LRU state. Bounding such transients is open, as it is for K3a.
 
 ## 6. Analytical results to prove and verify
 
+Proofs of N1, N2, K3a and of the `periodic_state` skip are in
+[the cluster theorems](cluster-theorems.md).
+
 The **must-have** items are the ones the December snapshot needs.
 
 ### N1. Zero-load latency closed forms (must-have)
@@ -372,8 +375,9 @@ a_n = s_(n−P) + D + Z        (n ≥ P)
 ```
 
 with eventual slope `λ = max(I, D/K, (Z+D)/P)`. So `X = min(1/I, K/D, P/(Z+D))` is
-attained exactly. The proof sketch is in revision 1's argument: cyclic order is
-preserved, completions are FIFO, and the max-plus cycle mean is `max_j w_j/j`.
+attained exactly. The full proof is in [the cluster theorems](cluster-theorems.md) §4:
+cyclic order is preserved, completions are FIFO, and the max-plus cycle mean is
+`max_j w_j/j`.
 
 **Checked so far.** `tests/cluster_theorem_tests.cpp` drives the production
 `MemoryService` with P closed-loop sources and compares every admission with the
@@ -384,7 +388,8 @@ in cyclic order. On the last 300 admissions some period q satisfies
 over one period is exactly `Pλ − Z`. Each of the three terms of λ binds in some
 cases. One worked example: `P=4, Z=10, D=12, I=2, K=2` gives `λ = 6`, mean latency 14,
 and admissions `10, 12, 22, 24, 34, 36, …` (period 2, gaps 2 and 10). These are
-checks of a stated theorem, not a proof; the proof goes in the theorem write-up.
+checks of a stated theorem, not a proof; the proof is in
+[the cluster theorems](cluster-theorems.md) §4.
 
 **Open item: transient length.** The longest transient observed is 30 admissions
 (P ≤ 8). Bounding the transient is a research item. Periodic-state acceleration
@@ -576,7 +581,7 @@ violated, with their tightness reported.
 | `testbench.cpp`, `edge_bench.cpp` | Version dispatch; version-2 report |
 | `tests/noc_tests.cpp`, `tests/cluster_tests.cpp` (new) | Routing/hop and zero-load units; oracle, golden cases, sweeps |
 | `configs/cluster-2x2-mesh.ini`, `cluster-3x3-torus.ini`, `cluster-4x4-mesh.ini` | Directed examples |
-| `docs/cluster-theorems.md` | N1–N3 proofs and figures |
+| `docs/cluster-theorems.md` | N1–N3 and `periodic_state` proofs (done); figures pending |
 
 ## 10. Session plan (about one hour each)
 
