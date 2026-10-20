@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <map>
 #include <stdexcept>
 
 namespace edge {
@@ -98,6 +99,70 @@ CacheCounts analyze_cold_sweep(CacheGeometry g,U first,U n,U repeats) {
     out.hits=out.references-out.misses;
     out.evictions=out.misses-resident;
     out.fill_bytes=mul(out.misses,g.line_bytes);
+    return out;
+}
+RepeatedCounts analyze_repeated(CacheGeometry g,std::span<const Event> events,U calls,
+                                CacheState initial,U limit) {
+    validate(g);
+    RepeatedCounts out;
+    auto start=state(g,std::move(initial));
+    if (!calls) { out.total.final_state=std::move(start); return out; }
+    out.first=analyze_reuse(g,events,start,limit);
+    // Line references of one call, in order, and each line's window [first, last].
+    struct Window { U first, last; };
+    std::map<U,Window> windows;
+    U position=0;
+    for (const auto& e:events) {
+        const U n=contiguous_lines(e.address,e.bytes,g.line_bytes);
+        for (U j=0;j<n;++j,++position) {
+            const U line=e.address/g.line_bytes+j;
+            auto [it,fresh]=windows.try_emplace(line,Window{position,position});
+            if (!fresh) it->second.last=position;
+        }
+    }
+    // Re-misses (references after a line's first in the call) depend only on the call
+    // itself: a cold call misses each distinct line once, plus every re-miss.
+    const auto cold=analyze_reuse(g,events,{},limit);
+    out.re_misses=cold.misses-windows.size();
+    // Warm first references: D_cyc(x) = (k_s - 1) - nested(x), where y is nested in x
+    // iff first_x < first_y and last_y < last_x (y is never referenced in the cyclic
+    // gap from x's last reference to its next first reference). Hit iff D_cyc < W.
+    std::vector<std::vector<Window>> by_set(g.sets);
+    for (const auto& [line,w]:windows) by_set[line%g.sets].push_back(w);
+    for (auto& set:by_set) {
+        const U k=set.size();
+        // Sort by first descending; a Fenwick tree over ranks of `last` counts nested
+        // windows among those already inserted (which all start later).
+        std::sort(set.begin(),set.end(),[](const Window& a,const Window& b){return a.first>b.first;});
+        std::vector<U> lasts;
+        for (const auto& w:set) lasts.push_back(w.last);
+        std::sort(lasts.begin(),lasts.end());
+        std::vector<U> tree(k+1,0);
+        for (const auto& w:set) {
+            const U rank=static_cast<U>(std::lower_bound(lasts.begin(),lasts.end(),w.last)-lasts.begin()); // # lasts < w.last
+            U nested=0;
+            for (U i=rank;i>0;i-=i&(~i+1)) nested+=tree[i];
+            if (k-1-nested>=g.ways) ++out.warm_first_reference_misses;
+            for (U i=rank+1;i<=k;i+=i&(~i+1)) ++tree[i];
+        }
+    }
+    auto& s=out.steady;
+    s.references=out.first.references;
+    s.misses=add(out.warm_first_reference_misses,out.re_misses);
+    s.hits=s.references-s.misses;
+    // Occupancy never decreases and is equal at both ends of a steady call, so it is
+    // constant: a set that misses is full, and every steady miss evicts.
+    s.evictions=s.misses;
+    s.fill_bytes=mul(s.misses,g.line_bytes);
+    s.final_state=out.first.final_state;
+    const U later=calls-1;
+    auto& t=out.total;
+    t.references=add(out.first.references,mul(later,s.references));
+    t.hits=add(out.first.hits,mul(later,s.hits));
+    t.misses=add(out.first.misses,mul(later,s.misses));
+    t.evictions=add(out.first.evictions,mul(later,s.evictions));
+    t.fill_bytes=add(out.first.fill_bytes,mul(later,s.fill_bytes));
+    t.final_state=out.first.final_state;
     return out;
 }
 RooflineBound roofline_bound(U macs,std::optional<double> peak,const std::string& provenance,

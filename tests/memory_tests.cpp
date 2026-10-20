@@ -111,6 +111,59 @@ int main() {
                 if (e.tensor==edge::Tensor::weights || e.tensor==edge::Tensor::bias) flash.push_back(e);
             equal(edge::analyze_reuse({8,2,2},flash),replay({8,2,2},flash));
         }
+        // Theorem A2: repeated calls. The oracle replays every call from the previous
+        // call's state; the analyzer derives calls >= 2 from the window-nesting rule.
+        U repeated_cases=0,warm_differs=0;
+        auto check_repeated=[&](edge::CacheGeometry g,const std::vector<edge::Event>& call,
+                                const edge::CacheState& initial,U calls) {
+            const auto r=edge::analyze_repeated(g,call,calls,initial);
+            edge::CacheState state=initial;
+            U misses=0,hits=0,evictions=0;
+            for (U c=0;c<calls;++c) {
+                const auto o=replay(g,call,state);
+                if (c==0) equal(r.first,o);
+                else {
+                    equal(r.steady,o);
+                    if (o.misses!=r.first.misses) ++warm_differs;
+                }
+                misses+=o.misses; hits+=o.hits; evictions+=o.evictions;
+                state=o.final_state;
+            }
+            check(r.total.misses==misses && r.total.hits==hits && r.total.evictions==evictions);
+            if (calls) check(r.total.final_state==state && r.steady.misses==r.warm_first_reference_misses+r.re_misses);
+            ++repeated_cases;
+        };
+        std::mt19937 rep_rng(20261020);
+        for (U l:{1U,3U,8U}) for (U s=1;s<=5;++s) for (U w=1;w<=4;++w) for (U trial=0;trial<12;++trial) {
+            const edge::CacheGeometry g{l,s,w};
+            std::vector<edge::Event> pre,call;
+            for (int j=0;j<10;++j) pre.push_back(read(rep_rng()%120,1+rep_rng()%6));
+            for (int j=0;j<30;++j) call.push_back(read(rep_rng()%120,1+rep_rng()%6));
+            const auto initial=trial%3==0?edge::CacheState{}:replay(g,pre).final_state;
+            check_repeated(g,call,initial,1+rep_rng()%5);
+        }
+        // Special case: a sweep has point windows, so D_cyc = k_s - 1 and the rule is
+        // the cold-sweep theorem (all hit iff k_s <= W).
+        for (U s=1;s<=4;++s) for (U w=1;w<=3;++w) for (U first=0;first<5;++first) for (U n=1;n<=12;++n) {
+            std::vector<edge::Event> sweep;
+            for (U j=0;j<n;++j) sweep.push_back(read((first+j)*8));
+            const auto r=edge::analyze_repeated({8,s,w},sweep,4);
+            const auto c=edge::analyze_cold_sweep({8,s,w},first,n,4);
+            check(r.total.misses==c.misses && r.total.hits==c.hits && r.total.evictions==c.evictions &&
+                  r.total.final_state==c.final_state);
+            ++repeated_cases;
+        }
+        // FC flash streams (weights + bias) repeated, cold and warm entry.
+        for (int n:{1,3,4,5,8,9,13}) for (int m:{1,2,3,5}) for (U s:{1U,2U,4U}) for (U w:{1U,2U}) {
+            const auto ir=edge::derive_fc({n,m,1,0,1073741824,-1,-128,127},
+                {0x20040000,0x08010000,0x08010100,0x20040100});
+            std::vector<edge::Event> flash;
+            for (auto e:edge::enumerate_events(ir))
+                if (e.tensor==edge::Tensor::weights || e.tensor==edge::Tensor::bias) flash.push_back(e);
+            check_repeated({8,s,w},flash,{},3);
+        }
+        check(warm_differs>0);   // Warm calls genuinely differ from cold ones somewhere.
+        check(edge::analyze_repeated({8,2,2},std::vector{read(0)},0).total.references==0);
         const std::vector<edge::Event> es{read(0)};
         rejects([&]{edge::analyze_reuse({0,2,2},es);});
         rejects([&]{edge::analyze_reuse({8,2,2},es,{{0,0},{}});});
@@ -144,6 +197,6 @@ int main() {
         d[0].boundary=d[1].boundary;
         rejects([&]{edge::roofline_bound(15,1,"synthetic",d);});
         std::cout<<"Passed "<<sweep_cases<<" symbolic sweep cases, 600 trace/composition cases, "
-                 <<"24 FC schedules, geometry, bounds and rejection checks\n";
+                 <<"24 FC schedules, "<<repeated_cases<<" repeated-call cases, geometry, bounds and rejection checks\n";
     } catch (const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
 }
