@@ -3,7 +3,7 @@
 This document derives exact miss counts for the int8 fully connected kernel's flash read
 stream under the accepted synthetic cache contract. It covers:
 - **A2:** repeated calls, proved here for *any* read-only stream;
-- **A1:** a single call of the FC paired-row stream, in progress.
+- **A1:** a single cold call of the FC paired-row stream, in closed form.
 
 Each result names the test that checks it against the independent timestamp-LRU oracle
 in `tests/memory_tests.cpp`.
@@ -155,30 +155,141 @@ Every per-call count and state matches. Two mutations each fail the suite: chang
 `D_cyc ≥ W` to `> W`, and dropping the nesting term (which reduces the rule to the sweep
 rule).
 
-## 3. A1: one call of the FC stream (in progress)
+## 3. A1: one cold call of the FC stream
 
-The flash stream of one call is the concatenation of *regions*. Each pair of rows
-`(j, j+1)` with `j = 2p` gives one region, plus a final region for an odd last row. A
-region consists of:
-1. the bias words of its rows: 4 bytes each, contiguous, at `bias + 4j`;
-2. for each group `g < ⌊n/4⌋`: 4 bytes of row `j` at `weights + jn + 4g`, then 4 bytes of
-   row `j+1` at the same offset plus `n`;
-3. for each tail column `i` in `[4⌊n/4⌋, n)`: 1 byte of row `j`, then 1 byte of row
-   `j+1`.
+**Stream.** The flash stream of one call is a sequence of *regions*. Pair `p` (rows
+`2p, 2p+1`) gives one region, and an odd last row gives a final one-row region. Write
+`B_p = weights + 2pn` and `b_p = bias + 8p`. Each region issues, in order:
+1. its bias words: 4 bytes each, at `b_p`, `b_p + 4`;
+2. accesses `A(0) B(0) A(1) B(1) … A(K−1) B(K−1)`, where `K = G + T`, `G = ⌊n/4⌋` and
+   `T = n mod 4`.
+   - Access `k` starts at row offset `t(k)` with size `s(k)`: `t(k) = 4k` and `s(k) = 4` for
+     `k < G` (groups), then `t(k) = 4G + (k−G)` and `s(k) = 1` (tails).
+   - Cursor `A` reads row `2p` at `B_p + t(k)`; cursor `B` reads row `2p+1` at
+     `B_p + n + t(k)`.
+   - The one-row region has `A` only.
 
-Rows `j` and `j+1` are adjacent in memory. So a region's weight bytes form one contiguous
-range of `2n` bytes, read by two cursors `n` bytes apart. For `n = qL + r` the two
-current lines differ by `q` or `q + 1`. They fall in the same set exactly when that
-difference is `≡ 0 (mod S)`. This is the resonance: with `W = 1`, every access in such a
-phase misses, even though the working set is two lines.
+Input reads and output writes go to SRAM and are not part of this stream. The two rows of
+a pair are adjacent, so a region's weights are one contiguous range of `2n` bytes, read
+by two cursors `n` bytes apart.
 
-The remaining steps are:
-- derive the windows and the within-call re-miss count `re` in closed form, per region;
-- derive the distinct-line count and the nesting counts that A2 needs;
-- state the supported domain explicitly (for example `n ≥ 2L`, bias and weight ranges
-  not sharing a line), and reject unsupported cases;
-- verify exhaustively for `n, m ≤ 64`, all bases mod `S·L`, and sweeps of `S`, `W`
-  and `L`.
+**Supported domain.**
+- `n ≥ 2L + 8`;
+- the weight lines and the bias lines are disjoint ranges.
+
+Outside it `analyze_fc_flash` throws, because the classification below would need extra
+cases. Wide layers satisfy it for the usual line sizes. Narrow ones, such as an
+autoencoder bottleneck, stay with the finite analyzer. Bases are 16-byte aligned, as `derive_fc` requires; the proofs do not use this.
+
+**Lemma 3.1 (geometry in the domain).** In a pair region:
+1. The lines of `A(k)` and of `B(k)` are disjoint, and so are those of `B(k)` and
+   `A(k+1)`. Their nearest bytes are at least `n − 7 ≥ L + 1` apart.
+2. Cursor `A` touches lines `[X, M]` and cursor `B` touches `[M′, E]`, where
+   `X = ⌊B_p/L⌋`, `M = ⌊(B_p+n−1)/L⌋`, `M′ = ⌊(B_p+n)/L⌋` and `E = ⌊(B_p+2n−1)/L⌋`. The two
+   ranges share exactly one line, the *middle line* `M = M′`, iff `L ∤ B_p + n`.
+3. Consecutive regions share exactly one weight line, `E_{p−1} = X_p`, iff `L ∤ B_p`. They
+   share a bias line, `⌊b_p/L⌋`, iff `L ∤ b_p`.
+4. If `M` is shared, `B` makes its last reference to `M` in access `k*`, the access holding
+   row-`2p+1` offset `(M+1)L − 1 − (B_p+n) < L`. `A` makes its first reference to `M` in
+   access `k_a`, the access holding row-`2p` offset `ML − B_p ≥ n − L + 1`. Since
+   `n ≥ 2L + 8`, `t(k_a) ≥ n − L − 2 > L > t(k*)`, so `k_a > k*`.
+
+*Proof.* Each item is interval arithmetic on byte offsets, using `s(k) ≤ 4`. Bytes at
+least `L` apart lie in different lines. ∎
+
+**Theorem 3.2 (classification of re-references).** In one call, every reference that is
+not the first reference of its line in the call is of exactly one of the following kinds.
+Each comes with the set of lines referenced between it and the previous reference of the
+same line (its *gap*):
+
+| kind | when | gap |
+|---|---|---|
+| in-access / bias word | `b_p + 4` starts inside the line of word 1, or a later line of the same access | empty |
+| one-row region | `A(k+1)` continues `A(k)`'s line | empty |
+| cursor A | `A(k+1)` starts inside `A(k)`'s last line `x` (`L ∤ B_p + t(k+1)`) | lines of `B(k)` |
+| cursor B | `B(k+1)` starts inside `B(k)`'s last line (`L ∤ B_p + n + t(k+1)`) | lines of `A(k+1)` |
+| middle | `A(k_a)` first touches `M` | `[lo, hi] \ {M}`, `lo = ⌊(B_p+t(k*+1))/L⌋`, `hi` = last line of `B(k_a−1)` |
+| boundary | `A(0)` of region `p ≥ 1` starts on `E_{p−1}` | bias lines of region `p` |
+| bias | region `p ≥ 1`'s first bias line was region `p−1`'s last | weight lines `[X_{p−1}, E_{p−1}]` |
+
+*Proof.* Every access covers consecutive bytes and the cursors only advance. So a line's
+references by one cursor are consecutive accesses of that cursor, and its first reference
+by that cursor is either new or one of the cross-cursor or cross-region shares of
+Lemma 3.1. These shares are:
+- the middle line: `B` touches it first, `A` last;
+- the boundary line: region `p−1`'s `B` touches it last, region `p`'s `A` first;
+- the shared bias line.
+
+The gaps follow from the issue order. For example, between `B(k*)` and `A(k_a)` the
+stream contains `A(k*+1 … k_a)` and `B(k*+1 … k_a−1)`. These sweep every line from `lo`
+to `M−1` and from the line after `M` to `hi`, because both cursors cover their bytes
+contiguously (Lemma 3.1.4 gives `k_a > k*`). Region `p−1`'s last flash access is `B(K−1)`,
+which ends on `E_{p−1}`. Only region `p`'s bias words follow it before `A(0)`. ∎
+
+**Theorem 3.3 (cold call).** Let `c_s(I)` be the number of lines `y` in a line range `I`
+with `y ≡ s (mod S)`. A re-reference to `x` misses iff `c_{x mod S}(gap) ≥ W`, by
+Lemma 1.1, since the lines of the gap differ from `x` (Lemma 3.1). For the middle kind
+the condition is `c_{M mod S}([lo, hi]) − 1 ≥ W`. Then, from an empty cache:
+
+```text
+misses     = ⌈weight lines⌉ + ⌈bias lines⌉ + re_cursor + re_middle + re_boundary + re_bias
+evictions  = misses − Σ_s min(W, k_s)
+```
+
+The final state follows from Lemma 1.2 with the last-reference order below.
+
+Each `c_s` over a range is a difference of two floors:
+`c_s([lo, hi]) = ⌊(hi − s)/S⌋ − ⌊(lo − 1 − s)/S⌋`, with the natural convention for
+negative arguments.
+
+The resonance of the paired rows is the *cursor* kind:
+- **W = 1.** A continuation misses whenever the other cursor's access touches its set, so
+  whole phases of a pair miss on every access although the pair's working set is two lines.
+- **W = 2.** A continuation can miss only when `S = 1` and the other cursor's access
+  straddles a line.
+- **W ≥ 3.** Continuations never miss.
+
+The middle, boundary and bias kinds are the long-gap reuses. Whether they hit depends on
+how many lines of the right set fit into a whole row (middle) or pair (bias), which is
+what the counts `c_s` measure.
+
+**Lemma 3.4 (periodicity).** Shifting every address by a multiple of `S·L` shifts every
+line by a multiple of `S`. It changes neither sets nor line offsets, so it changes no
+hit or miss. Hence:
+- a group access's contribution depends on `k` only through `k mod S·L/gcd(S·L, 4)`;
+- a region's contribution depends only on `(B_p mod S·L, b_p mod S·L, rows, p > 0)`.
+
+**Implementation.** `analyze_fc_flash(geometry, ir)` in `src/fc_cache.cpp` works as
+follows.
+- For each region type it sums the group accesses over one period with multiplicities,
+  and treats the at most four tail transitions explicitly.
+- It memoises regions by type: there are at most `S·L` types per row count.
+- The final state comes from Lemma 1.2. Each line gets a last-reference key
+  `(region, access, cursor, line)`: its last byte's access, or `A(K−1)` for a middle
+  line. Region numbers do not decrease with the line number, so a downward scan of each
+  set stops once `W` candidates come from later regions.
+
+The counts cost `O(m log(SL) + S·L · min(m, S·L))`, independent of `n`. The final state
+costs `O(S·W + n/L)`. A layer of `2^20 × 2^10` bytes runs in the test without
+enumeration.
+
+*Check.* `fc_cache_tests` (ctest `fc_cache_theorem`) compares counts, evictions and the
+final state with the oracle replaying the enumerated stream:
+- 38,400 exhaustive cases: `L ∈ {4, 8, 16, 32}`, `S ∈ {1, 2, 3, 4, 8}`, `W = 1–4`,
+  every `n` in `[2L+8, 2L+27]`, `m ∈ {1, 2, 3, 4, 5, 7}`, two weight-base offsets within an
+  `S·L` period, and bias just after the weights or apart;
+- 300 random layers, `n` up to 700, `m` up to 40, `S` up to 16.
+
+Every kind produces misses in the suite (cursor 165,924; middle 24,071; boundary 3,712;
+bias 10,004). Seven mutations each fail the suite: weakening any of the miss conditions
+from `≥ W` to `> W`, dropping either cursor kind, mis-keying the middle line's last
+reference, or stopping the final-state scan early. Domain violations are rejected.
+
+**Not yet covered.**
+- Warm calls of the FC stream still use `analyze_repeated`, which enumerates one call.
+  A symbolic version needs the nesting counts of Theorem 2.2 per kind.
+- **A3**, the exhaustive campaign over all base residues and larger `n, m`.
+- Cases outside the domain (`n < 2L + 8`, or shared weight/bias lines).
 
 ## References
 

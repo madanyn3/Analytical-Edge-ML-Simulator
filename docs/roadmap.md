@@ -22,6 +22,7 @@ Verified on 16 October 2026: host Release build with GCC 13, all 7 CTest groups 
 | Frontend (fetch/decode/execute) | **Not started** | Only static disassembly inspection |
 | Energy | Deferred by design | — |
 | Phase K — tiled cluster (added 16 Oct) | **Must-haves done, 20 Oct** | Exact evaluator vs tick oracle; N1, N2, K3a and `periodic_state` proved in [cluster-theorems.md](cluster-theorems.md) and checked in `cluster_theorem_tests`/`cluster_tests`; CI green |
+| Phase A — FC cache theorem | **A1 (cold call) and A2 done, 20 Oct; A3 open** | A2 for any read-only stream, A1 closed form for the paired-row stream (four re-reference kinds), proofs in [fc-cache-theorem.md](fc-cache-theorem.md); 38,700 oracle cases in `fc_cache_tests` |
 
 Things to fix first:
 
