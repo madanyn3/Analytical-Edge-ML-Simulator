@@ -22,4 +22,9 @@ struct FcFlashCounts {
 //   leaves the shared middle line before row j's cursor reaches it;
 //   the weight and bias line ranges are disjoint.
 FcFlashCounts analyze_fc_flash(CacheGeometry, const KernelIR&);
+// Repeated calls from an empty cache (Theorems 2.1-2.2 on the same stream and domain).
+// Warm first references: x misses iff (k_s - 1) - nested(x) >= W, where nested(x) counts
+// same-set lines whose windows lie inside x's; each count is binary searches over runs of
+// lines with monotone windows. Re-misses are A1's. Cost independent of m (memoised regions).
+RepeatedCounts analyze_fc_flash_repeated(CacheGeometry, const KernelIR&, std::uint64_t calls);
 }

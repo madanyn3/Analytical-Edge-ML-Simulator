@@ -10,6 +10,7 @@ namespace edge {
 namespace {
 using U = std::uint64_t;
 using Key = std::array<U,4>;   // (region, slot, cursor, line); slot 0 = bias, 1+k = access k.
+struct Window { Key first, last; };
 U checked_add(U a, U b) {
     if (b > std::numeric_limits<U>::max()-a) throw std::overflow_error("address overflow");
     return a+b;
@@ -94,20 +95,66 @@ struct Stream {
         if (rows(p)==2 && o>=n) return {p,1+access(o-n),1,x};
         return {p,1+access(o),0,x};
     }
-    // Last reference of weight line x: its last byte, except the middle line, whose bytes in
-    // row j are read by A(K-1) after B has left it.
-    Key weight_key(U x) const {
-        const U first=std::max(x*L,w)-w, z=std::min((x+1)*L-1,w+m*n-1)-w;
-        Key k=byte_key(z,x);
-        if (k[2]==1) {
-            const U za=2*k[0]*n+n-1;
-            if (first<=za) k=std::max(k,byte_key(za,x));
+    // Window [first, last] of weight line x. Its bytes split into at most three cursor
+    // pieces (row 2p by A, row 2p+1 by B, next region's row by A); recency is monotone in
+    // the byte within a piece, so each piece contributes its first and last byte. This makes
+    // the middle line's last reference A(K-1), after B has left it.
+    Window weight_window(U x) const {
+        const U hi=std::min((x+1)*L-1,w+m*n-1)-w;
+        Window win{{~U{0},0,0,0},{0,0,0,0}};
+        for (U z=std::max(x*L,w)-w;z<=hi;) {
+            const U p=std::min(z/(2*n),pairs), o=z-2*p*n;
+            const U end=std::min(hi,2*p*n+(rows(p)==2 && o<n ? n : rows(p)*n)-1);
+            win.first=std::min(win.first,byte_key(z,x));
+            win.last=std::max(win.last,byte_key(end,x));
+            z=end+1;
         }
-        return k;
+        return win;
     }
-    Key bias_key(U y) const {
-        const U z=std::min((y+1)*L-1,b+4*m-1)-b;
-        return {std::min(z/8,pairs),0,0,y};
+    Window bias_window(U y) const {
+        auto key=[&](U z){ return Key{std::min(z/8,pairs),0,0,y}; };
+        return {key(std::max(y*L,b)-b),key(std::min((y+1)*L-1,b+4*m-1)-b)};
+    }
+    // Weight lines split into runs on which both window ends are non-decreasing in the line:
+    // run j holds row 2j-1's lines (cursor B of pair j-1) then row 2j's (cursor A of region
+    // j), between the lines s_j = floor((B_j + n)/L) where row 2j+1 starts. When that line is
+    // shared with row 2j (the middle line M_j) it is excluded and handled on its own.
+    U split(U j) const { return line(w+2*j*n+n); }
+    bool shared(U j) const { return (w+2*j*n+n)%L; }
+    std::pair<U,U> run(U j) const {
+        const U first=j ? split(j-1)+shared(j-1) : line(w);
+        const U last=j<pairs ? split(j)-1 : line(w+m*n-1);
+        return {first,last};
+    }
+    // #{y in [a, b], y ≡ r (mod S) : first_y > first_x and last_y < last_x}, for a run on
+    // which both window ends are non-decreasing in y: the qualifying y form an interval.
+    template<class F> U inside(U a, U b, const Window& x, U r, F window) const {
+        if (a>b) return 0;
+        U lo=a, hi=b+1;   // Smallest y with first_y > first_x (b+1 if none).
+        while (lo<hi) { const U mid=lo+(hi-lo)/2; if (window(mid).first>x.first) hi=mid; else lo=mid+1; }
+        const U ya=lo;
+        lo=a; hi=b+1;     // Smallest y with last_y >= last_x; yb is the line before it.
+        while (lo<hi) { const U mid=lo+(hi-lo)/2; if (window(mid).last>=x.last) hi=mid; else lo=mid+1; }
+        return lo>ya ? congruent(ya,lo-1,r) : 0;
+    }
+    // nested(x): lines of x's set whose windows lie strictly inside x's window. Such lines
+    // are referenced only in the regions x's window spans, i.e. in runs first..last+1, the
+    // middle lines of regions first..last, and the bias run.
+    U nested(const Window& x, U line_x) const {
+        const U r=line_x%S;
+        U count=0;
+        auto ww=[&](U y){ return weight_window(y); };
+        for (U j=x.first[0];j<=std::min(x.last[0]+1,pairs);++j) {
+            const auto [a,b2]=run(j);
+            count+=inside(a,b2,x,r,ww);
+        }
+        for (U j=x.first[0];j<=x.last[0] && j<pairs;++j) {
+            if (!shared(j) || split(j)%S!=r || split(j)==line_x) continue;
+            const auto y=weight_window(split(j));
+            if (x.first<y.first && y.last<x.last) ++count;
+        }
+        count+=inside(line(b),line(b+4*m-1),x,r,[&](U y){ return bias_window(y); });
+        return count;
     }
 };
 // Largest x <= hi with x ≡ r (mod S), if it is >= lo.
@@ -117,9 +164,9 @@ bool top(U lo, U hi, U r, U S, U& x) {
     x=hi-d;
     return true;
 }
-}
 
-FcFlashCounts analyze_fc_flash(CacheGeometry g, const KernelIR& ir) {
+// Validates the supported domain and builds the stream description.
+Stream make_stream(CacheGeometry g, const KernelIR& ir) {
     if (!g.line_bytes || !g.sets || !g.ways) throw std::invalid_argument("zero cache dimension");
     if (checked_mul(g.sets,g.ways)>1000000) throw std::length_error("cache state exceeds supported budget");
     const U n=static_cast<U>(ir.spec().n), m=static_cast<U>(ir.spec().m);
@@ -129,7 +176,14 @@ FcFlashCounts analyze_fc_flash(CacheGeometry g, const KernelIR& ir) {
     const U w=ir.layout().weights, b=ir.layout().bias;
     const U w_end=checked_add(w,checked_mul(m,n))-1, b_end=checked_add(b,4*m)-1;
     if (!(w_end/L<b/L || b_end/L<w/L)) throw std::invalid_argument("unsupported FC cache case: weight and bias lines overlap");
-    const Stream st{L,S,W,n,m,ir.pairs(),ir.groups(),ir.groups()+ir.tail(),w,b};
+    return Stream{L,S,W,n,m,ir.pairs(),ir.groups(),ir.groups()+ir.tail(),w,b};
+}
+}
+
+FcFlashCounts analyze_fc_flash(CacheGeometry g, const KernelIR& ir) {
+    const Stream st=make_stream(g,ir);
+    const U n=st.n, m=st.m, L=st.L, S=st.S, W=st.W, w=st.w, b=st.b;
+    const U w_end=w+m*n-1, b_end=b+4*m-1;
 
     // A region's contribution depends only on (B_p mod SL, bias_p mod SL, rows, p > 0).
     FcFlashCounts out;
@@ -161,7 +215,7 @@ FcFlashCounts analyze_fc_flash(CacheGeometry g, const KernelIR& ir) {
         if (top(w/L,w_end/L,set,S,x)) {
             U region=std::numeric_limits<U>::max(), later=0;
             for (;;) {
-                const Key k=st.weight_key(x);
+                const Key k=st.weight_window(x).last;
                 if (k[0]<region) { region=k[0]; later=cand.size(); }
                 if (later>=W) break;
                 cand.push_back(k);
@@ -170,7 +224,7 @@ FcFlashCounts analyze_fc_flash(CacheGeometry g, const KernelIR& ir) {
             }
         }
         if (top(b/L,b_end/L,set,S,x)) for (U j=0;j<W;++j) {
-            cand.push_back(st.bias_key(x));
+            cand.push_back(st.bias_window(x).last);
             if (x<b/L+S) break;
             x-=S;
         }
@@ -180,6 +234,56 @@ FcFlashCounts analyze_fc_flash(CacheGeometry g, const KernelIR& ir) {
         resident+=cand.size();
     }
     out.counts.evictions=out.counts.misses-resident;
+    return out;
+}
+
+RepeatedCounts analyze_fc_flash_repeated(CacheGeometry g, const KernelIR& ir, std::uint64_t calls) {
+    const Stream st=make_stream(g,ir);
+    RepeatedCounts out;
+    if (!calls) { out.total.final_state.resize(g.sets); return out; }
+    const auto cold=analyze_fc_flash(g,ir);
+    out.first=cold.counts;
+    out.re_misses=cold.cursor_re_misses+cold.middle_re_misses+cold.boundary_re_misses+cold.bias_re_misses;
+    // Theorem 2.2: a warm first reference to x misses iff (k_s - 1) - nested(x) >= W.
+    const U S=st.S, SL=st.S*st.L, n=st.n;
+    const U w0=st.line(st.w), w1=st.line(st.w+st.m*n-1), b0=st.line(st.b), b1=st.line(st.b+4*st.m-1);
+    std::vector<U> k(S);
+    for (U s=0;s<S;++s) k[s]=st.congruent(w0,w1,s)+st.congruent(b0,b1,s);
+    auto misses=[&](U x, const Window& win){ return k[x%S]-1-st.nested(win,x)>=st.W; };
+    // Weight lines by home region (the region of their first byte). Their windows and every
+    // window nested in them lie in regions p..p+2, so the count depends only on B_p and
+    // bias_p mod SL, the regions remaining after p (clamped at 3) and p > 0 (Lemma 3.4).
+    const U regions=st.pairs+ir.odd_rows();
+    auto home=[&](U p){ return p ? (st.w+2*p*n+st.L-1)/st.L : w0; };
+    std::map<std::array<U,4>,U> memo;
+    for (U p=0;p<regions;++p) {
+        const std::array<U,4> key{(st.w+2*p*n)%SL,(st.b+8*p)%SL,std::min(regions-p,U{3}),p>0};
+        auto it=memo.find(key);
+        if (it==memo.end()) {
+            U c=0;
+            const U last=p+1<regions ? home(p+1)-1 : w1;
+            for (U x=home(p);x<=last;++x) c+=misses(x,st.weight_window(x));
+            it=memo.emplace(key,c).first;
+        }
+        out.warm_first_reference_misses+=it->second;
+    }
+    for (U y=b0;y<=b1;++y) out.warm_first_reference_misses+=misses(y,st.bias_window(y));
+
+    auto& s=out.steady;
+    s.references=out.first.references;
+    s.misses=checked_add(out.warm_first_reference_misses,out.re_misses);
+    s.hits=s.references-s.misses;
+    s.evictions=s.misses;   // Corollary 2.3: occupancy is constant in a warm call.
+    s.fill_bytes=checked_mul(s.misses,st.L);
+    s.final_state=out.first.final_state;   // Theorem 2.1: the cold exit state is the fixed point.
+    const U later=calls-1;
+    auto& t=out.total;
+    t.references=checked_add(out.first.references,checked_mul(later,s.references));
+    t.hits=checked_add(out.first.hits,checked_mul(later,s.hits));
+    t.misses=checked_add(out.first.misses,checked_mul(later,s.misses));
+    t.evictions=checked_add(out.first.evictions,checked_mul(later,s.evictions));
+    t.fill_bytes=checked_add(out.first.fill_bytes,checked_mul(later,s.fill_bytes));
+    t.final_state=out.first.final_state;
     return out;
 }
 }

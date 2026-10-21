@@ -3,7 +3,8 @@
 This document derives exact miss counts for the int8 fully connected kernel's flash read
 stream under the accepted synthetic cache contract. It covers:
 - **A2:** repeated calls, proved here for *any* read-only stream;
-- **A1:** a single cold call of the FC paired-row stream, in closed form.
+- **A1:** a single cold call of the FC paired-row stream, in closed form, and its warm
+  calls (§3.1).
 
 Each result names the test that checks it against the independent timestamp-LRU oracle
 in `tests/memory_tests.cpp`.
@@ -278,18 +279,101 @@ final state with the oracle replaying the enumerated stream:
 - 38,400 exhaustive cases: `L ∈ {4, 8, 16, 32}`, `S ∈ {1, 2, 3, 4, 8}`, `W = 1–4`,
   every `n` in `[2L+8, 2L+27]`, `m ∈ {1, 2, 3, 4, 5, 7}`, two weight-base offsets within an
   `S·L` period, and bias just after the weights or apart;
-- 300 random layers, `n` up to 700, `m` up to 40, `S` up to 16.
+- 300 random layers, `n` up to 700, `m` up to 40, `S` up to 16;
+- 3,770 dense-region layers with many pairs per `S·L` period (768 on a grid, 3,000 random,
+  2 directed; see §3.1). That makes 42,470 cases in all.
 
 Every kind produces misses in the suite (cursor 165,924; middle 24,071; boundary 3,712;
 bias 10,004). Seven mutations each fail the suite: weakening any of the miss conditions
 from `≥ W` to `> W`, dropping either cursor kind, mis-keying the middle line's last
 reference, or stopping the final-state scan early. Domain violations are rejected.
 
+### 3.1 Warm calls of the FC stream
+
+Theorems 2.1 and 2.2 reduce warm calls to counting nested windows: a warm first reference
+to `x` misses iff `(k_s − 1) − nested(x) ≥ W`, and the re-misses are those of A1. For the
+FC stream every window and every nested count has a closed description.
+
+**Windows.** Within one cursor piece (row `2p` read by `A`, row `2p+1` read by `B`) the
+recency of a byte's reference increases with the byte. A line's bytes fall into at most
+three pieces, so its window `[f_x, l_x]` is the minimum and maximum of the keys of the
+first and last byte of each piece. This makes the middle line's window run from `B(0)` to
+`A(K−1)`, the boundary line's from `B(k)` of one region into `A` of the next, and a bias
+line's window span every region whose bias words it holds.
+
+**Lemma 3.5 (monotone runs).** Let `s_j = ⌊(B_j + n)/L⌋` be the line where row `2j+1`
+starts. Take the weight lines strictly between `s_{j−1}` and `s_j`. If `s_j` is not shared
+with row `2j`, include it in run `j+1`. On each such run, both `f_y` and `l_y` are
+non-decreasing in `y`. The same holds for the whole bias range.
+
+*Proof.* Run `j` holds row `2j−1`'s lines (cursor `B` of pair `j−1`), then row `2j`'s
+(cursor `A` of region `j`). Each cursor's keys increase with the byte, and pair `j−1`
+precedes region `j`. The only lines whose windows break this order are the shared middle
+lines: their first reference is `B(0)` but their last is `A(K−1)`. These are excluded and
+handled one by one. The boundary line closes a run with the largest `l` and opens nothing
+earlier. Bias lines are read in ascending order, one region after another. ∎
+
+**Theorem 3.6 (nested count).** For a window `[f_x, l_x]`, the lines nested in it are, on
+each run, the interval of `y` with `f_y > f_x` and `l_y < l_x`. Two binary searches find
+it, and `c_{x mod S}` counts the interval. Only the runs, middle lines and bias lines of
+the regions that `x`'s window spans can be nested. That is at most three regions for a
+weight line, and `⌈L/8⌉ + 1` for a bias line. So `nested(x)` costs `O(L log(mn))`.
+
+*Proof.* Lemma 3.5 and the definition of nesting. A line referenced outside those regions
+has a reference outside `x`'s window. ∎
+
+**Theorem 3.7 (warm FC counts).** From an empty cache, every call after the first has:
+
+```text
+misses    = re_cursor + re_middle + re_boundary + re_bias
+          + #{x : (k_{x mod S} − 1) − nested(x) ≥ W}
+evictions = misses
+```
+
+Its exit state is the cold exit state of A1.
+
+*Proof.* Corollary 2.3, Theorems 2.1 and 3.3, with `nested` from Theorem 3.6. ∎
+
+**Implementation.** `analyze_fc_flash_repeated(geometry, ir, calls)` sums the indicator
+over all lines, with a memo by region type:
+- A weight line belongs to the region of its first byte. Its window, and every window
+  nested in it, lies in regions `p … p+2`.
+- Its count therefore depends only on `B_p mod S·L`, `b_p mod S·L`, `p > 0`, and the number
+  of regions after `p`, clamped at 3 (Lemma 3.4).
+- Bias lines are summed directly.
+
+The cost is `O(min(m, S·L) · (n/L) · L log(mn) + m)`. It is independent of the number of
+calls, and of `m` once `m > S·L`. Its dependence on `n` is linear in the lines of one row,
+not in the references.
+
+*Check.* Every `fc_cache_tests` case also replays three calls in the oracle. It compares
+call 1 with A1 and calls 2 and 3 with the steady counts and state. Warm calls differ from
+cold ones in 16,399 cases. In 7,782 cases a warm call keeps only part of the stream.
+
+The memo key needed its own tests:
+- **Dense regions.** 3,000 random layers with 8–20 pairs and 4–12 sets, so region types
+  recur while sets hold few lines.
+- **Two directed cases**, found by searching against mutants of the key:
+  - dropping the bias residue (`L = 8, S = 15, W = 4, n = 30, m = 17`);
+  - clamping the remaining regions at 2 (`L = 16, S = 1, W = 38, n = 42, m = 13`).
+- **Memo-free comparison.** A separate one-off run compared the memoised analyzer with a
+  memo-free copy over a dense grid, and they agree on cold and warm counts in all
+  11,151,360 configurations. The grid: `L ∈ {4, 8, 16, 32}`, `S = 1–8`, `W = 1–40`,
+  `n ∈ [2L+8, 4L+8)`, `m = 3–24`, and several weight and bias offsets.
+
+Mutations each fail the suite:
+- ignoring nesting;
+- dropping the middle-line, bias-run or run-range terms;
+- shifting a run start;
+- collapsing window pieces;
+- dropping a bias line;
+- either memo-key mutation.
+
 **Not yet covered.**
-- Warm calls of the FC stream still use `analyze_repeated`, which enumerates one call.
-  A symbolic version needs the nesting counts of Theorem 2.2 per kind.
 - **A3**, the exhaustive campaign over all base residues and larger `n, m`.
 - Cases outside the domain (`n < 2L + 8`, or shared weight/bias lines).
+- Warm calls from an arbitrary, non-empty initial state. Only the first call depends on
+  it, and that call needs the cold analysis generalised.
 
 ## References
 
