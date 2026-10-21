@@ -4,7 +4,8 @@ This document derives exact miss counts for the int8 fully connected kernel's fl
 stream under the accepted synthetic cache contract. It covers:
 - **A2:** repeated calls, proved here for *any* read-only stream;
 - **A1:** a single cold call of the FC paired-row stream, in closed form, and its warm
-  calls (§3.1).
+  calls (§3.1);
+- **A3:** an exhaustive verification campaign against the oracle (§4).
 
 Each result names the test that checks it against the independent timestamp-LRU oracle
 in `tests/memory_tests.cpp`.
@@ -369,11 +370,49 @@ Mutations each fail the suite:
 - dropping a bias line;
 - either memo-key mutation.
 
-**Not yet covered.**
-- **A3**, the exhaustive campaign over all base residues and larger `n, m`.
-- Cases outside the domain (`n < 2L + 8`, or shared weight/bias lines).
-- Warm calls from an arbitrary, non-empty initial state. Only the first call depends on
-  it, and that call needs the cold analysis generalised.
+## 4. A3: verification campaign
+
+`fc_cache_campaign` (`tests/fc_cache_campaign.cpp`) checks the cold and warm analyzers of
+§3 against the oracle. For each case:
+1. The oracle replays the enumerated flash stream from an empty cache, then again from the
+   resulting state.
+2. Both calls are compared with `analyze_fc_flash_repeated`: hits, misses, evictions,
+   fill bytes, and the full final state of every set.
+
+**Full grid.** Each layer is checked for `W = 1–6`:
+- `L ∈ {2, 4, 6, 8, 12, 16}` (including line sizes that are not powers of two);
+- `S ∈ {1, …, 8, 12, 16}`;
+- every `n` from the domain edge `2L + 8` to 64, and every `m` from 1 to 64;
+- every 16-byte-aligned weight-base residue within one `S·L` period;
+- two bias placements: directly after the weights' last line, and at a different residue.
+
+That is 960,512 layers.
+
+**Random large layers.** 2,000 layers, each checked for `W = 1` up to its own `W`:
+- `L ∈ {3, 4, 5, 8, 10, 16, 24, 32, 64}`;
+- `S` up to 32 and `W` up to 8;
+- `n` up to `2L + 707` and `m` up to 80.
+
+**Result (21 October 2026).**
+- 5,772,227 geometry cases and 6,456,295,832 oracle references, with no mismatch.
+- The run takes about 1.5 minutes on 16 threads.
+- 199,280 cases have resonant cursor re-misses.
+- In 710,673 cases the warm call differs from the cold one.
+- In 262,630 cases some, but not all, first references survive between calls.
+
+`ctest` runs a subset with `--quick` (6,383 cases, under a second). A mutation that
+weakens one miss condition fails it.
+
+**Coverage limits.**
+- Bases are 16-byte aligned because `derive_fc` requires it. Region bases `B_p = w + 2pn`
+  still take every even residue, and the proofs do not use alignment.
+- Cases outside the domain are rejected, not checked:
+  - `n < 2L + 8`;
+  - weight and bias ranges that share a line.
+
+  They still have the finite analyzer.
+- Warm calls from an arbitrary non-empty initial state are not covered. Only the first
+  call depends on that state.
 
 ## References
 
