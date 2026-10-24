@@ -6,7 +6,8 @@ stream under the accepted synthetic cache contract. It covers:
 - **A1:** a single cold call of the FC paired-row stream, in closed form, and its warm
   calls (§3.1);
 - **A3:** an exhaustive verification campaign against the oracle (§4);
-- **A4:** a comparison with fully associative and random-set approximations (§5).
+- **A4:** a comparison with fully associative and random-set approximations (§5);
+- **A5:** the cost of the closed forms against enumeration and simulation (§6).
 
 Each result names the test that checks it against the independent timestamp-LRU oracle
 in `tests/memory_tests.cpp`.
@@ -489,6 +490,59 @@ resonance depends on its actual line size, sets, ways and fill behaviour.
 fc_cache_study > docs/data/fc-approximation-L16-S8-m16.csv
 python3 scripts/plot_fc_study.py docs/data/fc-approximation-L16-S8-m16.csv docs/diagrams/10-fc-approximation.svg
 ```
+
+## 6. A5: cost
+
+**Setup.** `fc_cache_cost` times the host cost of four ways to get the miss counts, as
+the layer doubles from 1 KiB to 16 MiB of weights. All four agree wherever they run. The
+paths are:
+- **closed form (cold):** `analyze_fc_flash` (§3), including `derive_fc`;
+- **closed form (repeated):** `analyze_fc_flash_repeated` (§3.1). It covers any number of
+  calls in one evaluation;
+- **trace simulation:**
+  - `enumerate_events` plus the flash filter, timed once;
+  - a bounded `W`-way move-to-front simulator, the cheapest straightforward baseline,
+    timed per call as the mean over 10 calls;
+- **finite exact analyzer:** `analyze_reuse` and `analyze_repeated`, including enumeration.
+
+Geometry: `L = 16`, `S = 8`, `W = 2`.
+
+**Measurement conditions.** These are *measured* host quantities, not properties of the
+target:
+- Release build, `g++ 13.3`, `-O3`;
+- AMD Ryzen AI 7 350 under WSL2, 21–24 October 2026.
+
+The data is in [`data/fc-cache-cost.csv`](data/fc-cache-cost.csv). Selected rows:
+
+| `n × m` | refs/call | closed cold | closed repeated (any calls) | enumerate | simulate per call | finite cold |
+|---|---|---|---|---|---|---|
+| 64 × 16 | 272 | 29 µs | 48 µs | 5 µs | 0.6 µs | 49 µs |
+| 1024 × 512 | 131,584 | 43 µs | 2.5 ms | 6.7 ms | 0.40 ms | 83 ms |
+| 4096 × 2048 | 2,099,200 | 83 µs | 14 ms | 0.22 s | 4.8 ms | 25.5 s |
+| 8192 × 2048 | 4,196,352 | 99 µs | 30 ms | 0.52 s | 15 ms | — (over budget) |
+
+**Reading.**
+1. **The cold closed form is essentially flat.** It goes from about 30 µs to 100 µs while
+   the stream grows 15,000×. That matches the `O(m log(SL) + S·L·min(m, S·L))` bound:
+   it is independent of `n`, and its `m` term is small. At 4.2M references it is about
+   5,000× faster than enumerating and simulating. Even with the trace given for free, it
+   is 150× faster than simulating it.
+2. **The repeated closed form is independent of the number of calls.** It grows linearly
+   with `n` (the lines of one row) and is nearly flat in `m`. One evaluation (30 ms at
+   4.2M references per call) costs about two simulated calls, so it is ahead from the
+   second call on. A trace simulation of `C` calls costs `C × 15 ms` plus enumeration.
+3. **The finite exact analyzer is quadratic.** Its unlimited per-set stacks are searched
+   linearly, so each doubling of the stream quadruples its time: 25.5 s at 2.1M
+   references. It exists as an exact general reference for any stream, not as a fast
+   path. A bounded simulator is the fair speed baseline, and the table uses one.
+4. **Enumeration dominates trace simulation here** (about 125 ns per reference, against
+   about 3.6 ns per simulated reference). The closed forms never build the trace.
+
+**Not claimed.** These are host timings of this implementation, not asymptotic proofs
+beyond the stated cost bounds. A simulator fused with a stream generator would remove
+the enumeration cost, but it would still be linear in references times calls.
+
+**Reproduce.** `fc_cache_cost [finite_budget_seconds] > docs/data/fc-cache-cost.csv`
 
 ## References
 
