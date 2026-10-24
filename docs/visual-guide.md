@@ -21,6 +21,7 @@ do not depict a verified L4R5 ART microarchitecture or a full Falcon implementat
 | [07 — Configuration](diagrams/07-configuration.svg) | Parsing, semantic validation, knobs, provenance and rejection | `config.cpp` |
 | [08 — Testbench](diagrams/08-testbench.svg) | Generated/CSV stimulus, injection points and engine restrictions | `testbench.cpp`, `edge_bench.cpp` |
 | [09 — Roofline and evidence](diagrams/09-roofline-and-evidence.svg) | Traffic boundaries, conditional bounds and claim limits | `memory.cpp` |
+| [10 — FC approximation study](diagrams/10-fc-approximation.svg) | Exact FC misses against fully associative and random-set models; paired-row resonance | `fc_cache.cpp`, `cache_approx.cpp` |
 
 ## 01. Start with the module boundaries
 
@@ -110,6 +111,25 @@ See [the worked FC memory example](../examples/memory_example.cpp).
 
 ![Work, resource traffic and dependency inputs feeding roofline bounds, with a worked example and evidence labels](diagrams/09-roofline-and-evidence.svg)
 
+## 10. Set mapping decides the FC stream's misses
+
+The direct-mapped panel plots, against the row length `n`, the cold-call misses of the
+FC flash stream from three models:
+- the exact set-aware count (Theorem A1);
+- a fully associative LRU of the same capacity;
+- the random-set-mapping model.
+
+Within about one line of each multiple of `S·L` the two row cursors share a set and the
+exact count jumps to up to 4.6 times the fully associative one. Neither statistical
+model can show this.
+
+The data is a plot of the analyzers, not a measurement. The figure is drawn from
+[fc-approximation-L16-S8-m16.csv](data/fc-approximation-L16-S8-m16.csv) by
+[plot_fc_study.py](../scripts/plot_fc_study.py), and §5 of
+[fc-cache-theorem.md](fc-cache-theorem.md) discusses it.
+
+![Exact FC flash misses against a fully associative LRU and the random-set model over n, with resonance windows shaded](diagrams/10-fc-approximation.svg)
+
 ## Maintaining the figures
 
 The SVGs are checked-in documentation artifacts. Their editable source is
@@ -124,4 +144,6 @@ Update diagram text and equations when their model contracts change, regenerate,
 then render and visually inspect the SVGs. Generation checks card height and XML
 well-formedness; visual review is still needed for arrows and text placement.
 The initial nine figures were rendered and inspected, including the timing and
-testbench figures at full resolution. No simulator behavior changed in this update.
+testbench figures at full resolution. Figure 10 is generated from study data by
+`scripts/plot_fc_study.py` (`fc_cache_study > csv`, then the script) and was rendered
+with headless Edge and inspected. No simulator behavior changed in this update.

@@ -5,7 +5,8 @@ stream under the accepted synthetic cache contract. It covers:
 - **A2:** repeated calls, proved here for *any* read-only stream;
 - **A1:** a single cold call of the FC paired-row stream, in closed form, and its warm
   calls (§3.1);
-- **A3:** an exhaustive verification campaign against the oracle (§4).
+- **A3:** an exhaustive verification campaign against the oracle (§4);
+- **A4:** a comparison with fully associative and random-set approximations (§5).
 
 Each result names the test that checks it against the independent timestamp-LRU oracle
 in `tests/memory_tests.cpp`.
@@ -413,6 +414,81 @@ weakens one miss condition fails it.
   They still have the finite analyzer.
 - Warm calls from an arbitrary non-empty initial state are not covered. Only the first
   call depends on that state.
+
+## 5. A4: approximation study
+
+**Question.** How much does the set mapping matter for this stream? Would a model without
+it, of the kind used in reuse-distance tools, predict the same misses?
+
+**Models** (`include/edge/cache_approx.hpp`). Both start from the reuse distance `D` of
+each reference: the number of distinct other lines since the previous reference to its
+line.
+- **Fully associative (FA).** LRU with the same capacity `S·W` lines and no sets: a
+  reference hits iff `D < S·W`. This is the abstraction of HayStack-style models. It is
+  exact for `S = 1`, and `cache_approx_tests` checks it against the oracle with one set.
+- **Random set mapping (RS).** The research plan's §7.4 model, used by AMM-style
+  statistical tools. Each intervening line maps to the reused line's set independently
+  with probability `1/S`, so `P(hit | D) = P(Binomial(D, 1/S) < W)`. The predicted misses
+  are the cold misses plus `Σ (1 − P(hit | D))`.
+
+For warm calls, both models use distances over two concatenated calls. The tests check
+the binomial sum against direct products, and the §7.4 diagnostic:
+- in a 4-set direct-mapped cache, alternating addresses 0 and 128 miss every time, while
+  0 and 32 miss twice;
+- both models give the same prediction for the two streams, because the streams have the
+  same distances.
+
+**Sweep.** `fc_cache_study` sweeps `n = 40 … 296`, two `S·L` periods, with:
+- `L = 16`, `S = 8`, `W ∈ {1, 2, 4}`, `m = 16`;
+- weights at `0x08000000` and bias after them.
+
+The data is in [`data/fc-approximation-L16-S8-m16.csv`](data/fc-approximation-L16-S8-m16.csv)
+and is plotted in [figure 10](diagrams/10-fc-approximation.svg). The cache holds 128–512
+bytes against a stream of at least 640 bytes, so warm calls equal cold calls here.
+§3.1 and the A3 campaign cover streams that partly survive between calls.
+
+**Results.** Relative error is `(model − exact)/exact`. Resonant `n` are those with
+cursor re-misses (Theorem 3.3).
+
+| W | `n` | count | FA error | RS error | max exact / FA |
+|---|---|---|---|---|---|
+| 1 | resonant | 58 | −78% … −28% | −67% … +5% | 4.58 |
+| 1 | other | 199 | −10.5% … +10.5% | +31% … +59% | 1.12 |
+| 2 | all | 257 | −3.9% … 0% | −3.1% … +6.5% | 1.04 |
+| 4 | all (cold) | 257 | −1.7% … 0% | −1.8% … +2.5% | 1.02 |
+| 4 | all (warm) | 257 | −1.7% … 0% | −21% … +2.5% | 1.02 |
+
+**Reading.**
+1. **Resonance is a set-mapping effect, located exactly by the theorem.** With `W = 1` the
+   two row cursors' lines differ by `q` or `q + 1` lines, with `q = ⌊n/L⌋`. They share a
+   set when that difference is `≡ 0 (mod S)`, which happens for `n` within about one line
+   of a multiple of `S·L`. Here that is `n mod 128 ∈ [115, 145]`. There the exact count
+   rises to 4.6× the fully associative one. Neither statistical model can show this,
+   because the stream's reuse distances do not change at resonance.
+2. **The random-set model is biased away from resonance.** Each cursor continuation has
+   `D = 1–2` intervening lines from the other cursor, and RS charges each of them a `1/S`
+   conflict chance. In fact those lines lie in a *different* set, deterministically, so
+   the continuation always hits. The result is a 31–59% overestimate at `W = 1` on the
+   `n` where the true behaviour is benign.
+3. **Fully associative is good away from resonance.** Away from it, the stream is close
+   to a pure streaming pattern, so FA stays within ±10.5% (`W = 1`) and 4% (`W ≥ 2`).
+4. **`W ≥ 2` removes the resonance.** A continuation can miss only when `S = 1` and the
+   other cursor's access straddles a line (Theorem 3.3), so all three models agree within
+   a few per cent. One exception is the random-set model's warm prediction for small `n`
+   at `W = 4`: it is up to 21% low. The stream (44 lines at `n = 40`) cycles through 32
+   frames, so LRU keeps nothing between calls, while RS expects a share of hits.
+
+**Status of the claims.** These are statements about models under the synthetic
+contract, comparing exact analysis with two approximations. They are not measurements of
+the L4R5 ART cache, whose geometry is unverified. Whether real hardware shows this
+resonance depends on its actual line size, sets, ways and fill behaviour.
+
+**Reproduce.**
+
+```text
+fc_cache_study > docs/data/fc-approximation-L16-S8-m16.csv
+python3 scripts/plot_fc_study.py docs/data/fc-approximation-L16-S8-m16.csv docs/diagrams/10-fc-approximation.svg
+```
 
 ## References
 
